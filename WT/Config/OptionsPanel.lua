@@ -497,11 +497,9 @@ function Panel:Build()
         CharacterSheet = "Interface\\Icons\\INV_Chest_Cloth_17",
         Frames = "Interface\\Icons\\INV_Misc_Wrench_01",
         Tooltip = "Interface\\Icons\\INV_Misc_Spyglass_02",
-        CombatTracker = "Interface\\Icons\\Ability_Hunter_SniperShot",
         Groups = "Interface\\Icons\\Spell_Holy_PrayerOfHealing",
         Nameplates = "Interface\\Icons\\Spell_Holy_BlessingOfStrength",
         SocialWidget = "Interface\\Icons\\Achievement_GuildPerk_EverybodysFriend",
-        TimeWidget = "Interface\\Icons\\Spell_Holy_BorrowedTime",
         Audio = "Interface\\Icons\\INV_Misc_Bell_01",
         Farming = "Interface\\Icons\\INV_Misc_Shovel_01",
         SettingsSync = "Interface\\Icons\\INV_Gizmo_02",
@@ -511,7 +509,7 @@ function Panel:Build()
     local moduleGroups = {
         { title = WT.L.GROUP_MOD_UI,  modules = { "Frames", "Nameplates", "CharacterSheet", "ColorPicker" } },
         { title = WT.L.GROUP_MOD_CHAT,          modules = { "Chat", "Keybindings", "SocialWidget", "Groups" } },
-        { title = WT.L.GROUP_MOD_INFO, modules = { "Tooltip", "CombatTracker", "TimeWidget" } },
+        { title = WT.L.GROUP_MOD_INFO, modules = { "Tooltip" } },
         { title = WT.L.GROUP_MOD_AUTO, modules = { "Automations", "Farming", "SettingsSync" } },
         { title = WT.L.CATEGORY_AUDIO,          modules = { "Audio" } }
     }
@@ -643,7 +641,7 @@ function Panel:Build()
         { name = "Chat",           check = { "Chat" },                        modules = { "ChatUI", "Chat", "ChatFilter", "ChatChannels" } },
         { name = "Keybindings",    check = { "Keybindings" },                 modules = { "Keybindings" } },
         { name = "Social",         check = { "SocialWidget", "Groups" },      modules = { "SocialWidget", "Groups", "LFG" } },
-        { name = "Widgets",        check = { "CombatTracker", "TimeWidget" }, modules = { "CombatTracker", "TimeWidget" } },
+        { name = "Widgets",        check = {},                                modules = { "CombatTracker", "TimeWidget" } },
         { name = "Automations",    check = { "Automations" },                 modules = { "Automations", "Questing", "Vendor", "Farming" } },
         { name = "Audio",          check = { "Audio" },                       modules = { "Audio" } },
         { name = "SettingsSync",   check = { "SettingsSync" },                modules = { "SettingsSync" } },
@@ -692,8 +690,6 @@ function Panel:Build()
         LFG = "Groups",
         Tooltip = "Tooltip",
         Wowhead = "Tooltip",
-        CombatTracker = "CombatTracker",
-        TimeWidget = "TimeWidget",
         Automations = "Automations",
         Questing = "Automations",
         Vendor = "Automations",

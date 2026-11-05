@@ -1,7 +1,15 @@
 local _, WT = ...
 
-WT.Modules.CombatTracker = {}
-local Module = WT.Modules.CombatTracker
+-- ============================================================================
+-- COMBAT TRACKER
+-- ============================================================================
+-- Small on-screen display for the distance to the target and the combat / encounter duration.
+-- Opt-in: nothing is created, registered or requested from the server until "Show Range" or
+-- "Show Combat Time" is enabled. Turning both off hides the display and removes all its events.
+
+local Module = WT:NewModule("CombatTracker")
+
+local POSITION_KEY = "WTCombatTracker"
 
 -- Localize global functions (Upvaluing)
 local GetTime = GetTime
@@ -20,68 +28,15 @@ local lastCombatDuration = 0
 local isPreviewMode = false
 local previewStartTime = 0
 
-local fnIsItemInRange = (C_Item and C_Item.IsItemInRange) or _G["IsItem".."InRange"]
-local fnGetItemCount = (C_Item and C_Item.GetItemCount) or _G["GetItem".."Count"]
-local hasItemInRangeFunc = type(fnIsItemInRange) == "function"
-
 local SafeNum = WT.Utils.Safety.SafeNum
 
 -- ============================================================================
--- RANGE CHECKING DATABASE
+-- RANGE CHECKING
 -- ============================================================================
--- We use items instead of spells for range checking because IsItemInRange 
--- is 100% taint-free. Checking spells in combat can lead to "Action Blocked" UI errors.
--- 
--- Rules for adding new items:
--- 1. The item must have a fixed, known maximum range.
--- 2. The item must be usable on the respective target type (Enemy vs. Friend).
--- 3. The lists MUST remain sorted by 'range' in ascending order!
-local ranges = {
-    { range = 5,  item = 37727 }, -- Ruby Acorn
-    { range = 8,  item = 34368 }, -- Attuned Crystal Cores
-    { range = 10, interact = 3 }, -- Duel (9.9)
-    { range = 11, interact = 2 }, -- Trade (11.11)
-    { range = 15, item = 33069 }, -- Starkenet
-    { range = 20, item = 10645 }, -- Gnomish Death Ray
-    { range = 25, item = 24268 }, -- Netherweave Net
-    { range = 28, interact = 4 }, -- Follow (28)
-    { range = 30, item = 835   }, -- Large Rope Net
-    { range = 35, item = 24269 }, -- Heavy Netherweave Net
-    { range = 40, item = 28767 }, -- The Decapitator
-    { range = 45, item = 32698 }, -- Wrangling Rope
-}
-
-local friendRanges = {
-    { range = 5,  item = 37727 }, -- Ruby Acorn
-    { range = 8,  item = 34368 }, -- Attuned Crystal Cores
-    { range = 10, interact = 3 },
-    { range = 11, interact = 2 },
-    { range = 15, item = 1251  }, -- Linen Bandage
-    { range = 20, item = 21519 }, -- Mistletoe
-    { range = 25, item = 31463 }, -- Zeth'gor Must Burn!
-    { range = 28, interact = 4 },
-    { range = 30, item = 1180  }, -- Scroll of Stamina
-    { range = 35, item = 18904 }, -- Zorbin's Water Resistant Hat
-    { range = 40, item = 34471 }, -- Vial of the Sunwell
-    { range = 45, item = 32698 }, -- Wrangling Rope
-}
-
-local playerHasItem = {}
-local function UpdateItemCache()
-    if not fnGetItemCount then return end
-    for _, data in ipairs(ranges) do
-        if data.item then
-            local ok, count = pcall(fnGetItemCount, data.item)
-            playerHasItem[data.item] = (ok and SafeNum(count) > 0)
-        end
-    end
-    for _, data in ipairs(friendRanges) do
-        if data.item then
-            local ok, count = pcall(fnGetItemCount, data.item)
-            playerHasItem[data.item] = (ok and SafeNum(count) > 0)
-        end
-    end
-end
+-- Distances come from LibRangeCheck-3.0 (Libs/), the community standard for this: it combines
+-- interact distances, items and the player's own spells (which also work in combat) and keeps
+-- up with Blizzard's API changes. It only provides ranges in steps, e.g. "between 20 and 25 yards".
+local RangeCheck = LibStub and LibStub("LibRangeCheck-3.0", true)
 
 local rangeStrCache = {}
 local function GetRangeString(minR, maxR, maxLimit)
@@ -104,68 +59,41 @@ local function GetTargetRange()
     if isPreviewMode then
         return "15 - 20", 15, 20, 20
     end
-    
-    -- PERFORMANCE: "target" is a literal string, so we can completely bypass pcall to save CPU overhead
-    if not UnitExists("target") then return nil end
-    
-    local minR, maxR = 0, nil
-    local isEnemy = UnitCanAttack("player", "target")
-    local isDead = UnitIsDead("target")
-    local rangeTable = isEnemy and ranges or friendRanges
+    if not RangeCheck or not UnitExists("target") then return nil end
+
     local maxLimit = cachedCTLabels.maxRange or 45
-    
-    local checksPerformed = 0
-    local inCombat = InCombatLockdown()
-    
-    for _, data in ipairs(rangeTable) do
-        if data.range > maxLimit then break end
-        local inRange = nil
-        if data.interact then
-            if not inCombat and not isDead then
-                inRange = CheckInteractDistance("target", data.interact)
-            end
-        elseif data.item then
-            if not inCombat or playerHasItem[data.item] then
-                        if hasItemInRangeFunc then
-                    local okR, resR = pcall(fnIsItemInRange, data.item, "target")
-                    if okR and type(resR) == "boolean" then inRange = resR end
-                end
-            end
-        end
-        
-        if inRange ~= nil then
-            checksPerformed = checksPerformed + 1
-            if inRange then
-                maxR = data.range
-                break
-            else
-                minR = data.range
-            end
-        end
+    local rawMin, rawMax = RangeCheck:GetRange("target")
+    local minR, maxR = SafeNum(rawMin), SafeNum(rawMax)
+    if not minR then
+        -- No estimate possible (e.g. no suitable spell or item in combat)
+        if InCombatLockdown() then return WT.L.CT_INFIGHT, nil, nil, nil end
+        return nil
     end
-    
-    if checksPerformed == 0 and inCombat then
-        return WT.L.CT_INFIGHT, nil, nil, nil
-    end
-    
-    if maxR and minR >= maxR then minR = 0 end
-    
+
+    -- Beyond the configured maximum: show "> max"
+    if minR >= maxLimit or (maxR and maxR > maxLimit) then maxR = nil end
     local str, distVal = GetRangeString(minR, maxR, maxLimit)
     return str, minR, maxR, distVal
 end
 
+local function IsRangeShown()
+    local db = WT.DB.CombatTracker
+    return db.ShowRange and (isPreviewMode or UnitExists("target") or db.AlwaysShowRange)
+end
+
+-- "Hide out of combat" only applies to the combat time, never to the range display
+local function IsTimeShown()
+    local db = WT.DB.CombatTracker
+    if not db.ShowCombatTime then return false end
+    if isPreviewMode or inCombat or inEncounter then return true end
+    if db.HideOutOfCombat then return false end
+    return db.AlwaysShowTimer or (db.KeepLastTime and lastCombatDuration > 0)
+end
+
 local function UpdateCTVisibility()
-    if not ctFrame or not WT.DB.Modules.CombatTracker then return end
-    
-    if isPreviewMode then
-        ctFrame:Show()
-        return
-    end
-    
-    local hasTarget = WT.DB.CombatTracker.ShowRange and (UnitExists("target") or WT.DB.CombatTracker.AlwaysShowRange)
-    local isTiming = WT.DB.CombatTracker.ShowCombatTime and (inCombat or inEncounter or WT.DB.CombatTracker.AlwaysShowTimer or (WT.DB.CombatTracker.KeepLastTime and lastCombatDuration > 0))
-    
-    if (hasTarget or isTiming) and not (WT.DB.CombatTracker.HideOutOfCombat and not inCombat and not inEncounter) then
+    if not ctFrame then return end
+
+    if isPreviewMode or IsRangeShown() or IsTimeShown() then
         ctFrame:Show()
     else
         local mod = WT.DB.CombatTracker.MoveModifier or "ALT"
@@ -207,7 +135,7 @@ local function UpdateCTText()
     
     local timePart, rangePart
     
-    local diff = 0
+    local diff
     if isPreviewMode then
         diff = (GetTime() - previewStartTime) + 84 -- start at 01:24
     elseif inCombat or inEncounter then
@@ -219,25 +147,26 @@ local function UpdateCTText()
     end
     if diff ~= diff or diff == math.huge or diff == -math.huge then diff = 0 end
     
-    local showTime = WT.DB.CombatTracker.ShowCombatTime and (isPreviewMode or inCombat or inEncounter or WT.DB.CombatTracker.AlwaysShowTimer or (WT.DB.CombatTracker.KeepLastTime and lastCombatDuration > 0))
-    if showTime then
+    if IsTimeShown() then
         local timeStr = FormatTime(diff)
-        if WT.DB.CombatTracker.ShowMilliseconds then
-            timePart = (cachedCTLabels.timeLabel == "") and string.format("|c%s%s|r", cachedCTLabels.vc, timeStr) or string.format("|c%s%s|r |c%s%s|r", cachedCTLabels.tc, cachedCTLabels.timeLabel, cachedCTLabels.vc, timeStr)
-        else
-            if lastTimeStrCache ~= timeStr then
-                lastTimeStrCache = timeStr
-                lastTimePartCache = (cachedCTLabels.timeLabel == "") and string.format("|c%s%s|r", cachedCTLabels.vc, timeStr) or string.format("|c%s%s|r |c%s%s|r", cachedCTLabels.tc, cachedCTLabels.timeLabel, cachedCTLabels.vc, timeStr)
-            end
-            timePart = lastTimePartCache
+        -- Optional highlight once a boss fight runs longer than the chosen time (e.g. enrage timer)
+        local db = WT.DB.CombatTracker
+        local valueColor = cachedCTLabels.vc
+        if db.BossTimeWarn and (inEncounter or isPreviewMode) and diff >= (db.BossTimeWarnSeconds or 300) then
+            valueColor = cachedCTLabels.warnColor
         end
+        local cacheKey = timeStr .. valueColor
+        if db.ShowMilliseconds or lastTimeStrCache ~= cacheKey then
+            lastTimeStrCache = cacheKey
+            lastTimePartCache = (cachedCTLabels.timeLabel == "") and string.format("|c%s%s|r", valueColor, timeStr) or string.format("|c%s%s|r |c%s%s|r", cachedCTLabels.tc, cachedCTLabels.timeLabel, valueColor, timeStr)
+        end
+        timePart = lastTimePartCache
     end
     
-    local showRange = WT.DB.CombatTracker.ShowRange and (isPreviewMode or UnitExists("target") or WT.DB.CombatTracker.AlwaysShowRange)
-    if showRange then
+    if IsRangeShown() then
         
         if isPreviewMode or UnitExists("target") then
-            local rangeStr, minR, maxR, distVal = GetTargetRange()
+            local rangeStr, _, _, distVal = GetTargetRange()
             if rangeStr then
                 local rCol = cachedCTLabels.vc
                 if WT.DB.CombatTracker.ColorizeRange then
@@ -289,7 +218,8 @@ local function UpdateCTText()
         if rangePart and timePart then finalStr = rangePart .. cachedCTLabels.sepFormat .. timePart elseif rangePart then finalStr = rangePart elseif timePart then finalStr = timePart end
     end
 
-    if finalStr == "" and WT.DB.CombatTracker.Movable then finalStr = string.format("|c%s[Combat Tracker]|r", cachedCTLabels.tc) end
+    -- Placeholder so the empty display can still be grabbed and moved
+    if finalStr == "" and WT.DB.CombatTracker.Movable then finalStr = string.format("|c%s[%s]|r", cachedCTLabels.tc, WT.L.CATEGORY_COMBATTRACKER) end
     
     if ctFrame.wtLastText ~= finalStr then
         ctFrame.text:SetText(finalStr)
@@ -304,185 +234,227 @@ local function UpdateCTText()
     end
 end
 
-function Module:SetupTracker()
-    if not WT.DB.Modules.CombatTracker then 
-        if ctFrame then ctFrame:Hide() end; return 
+local function BuildLabels()
+    local db = WT.DB.CombatTracker
+
+    -- A label consisting only of spaces hides the label; an empty one uses the default text
+    local function ResolveLabel(value, default)
+        if value and string_match(value, "^%s+$") then return "" end
+        local label = (value and value ~= "") and value or default
+        if string_match(label, "%S") and not string_match(label, ":%s*$") then label = label .. ":" end
+        return label
     end
-    
-    local tLbl = WT.DB.CombatTracker.TimeLabel
-    if tLbl and string_match(tLbl, "^%s+$") then
-        cachedCTLabels.timeLabel = ""
-    else
-        cachedCTLabels.timeLabel = (tLbl and tLbl ~= "") and tLbl or (WT.L.CT_TIME)
-        if string_match(cachedCTLabels.timeLabel, "%S") and not string_match(cachedCTLabels.timeLabel, ":%s*$") then cachedCTLabels.timeLabel = cachedCTLabels.timeLabel .. ":" end
-    end
-    
-    local rLbl = WT.DB.CombatTracker.RangeLabel
-    if rLbl and string_match(rLbl, "^%s+$") then
-        cachedCTLabels.rangeLabel = ""
-    else
-        cachedCTLabels.rangeLabel = (rLbl and rLbl ~= "") and rLbl or (WT.L.CT_RANGE)
-        if string_match(cachedCTLabels.rangeLabel, "%S") and not string_match(cachedCTLabels.rangeLabel, ":%s*$") then cachedCTLabels.rangeLabel = cachedCTLabels.rangeLabel .. ":" end
-    end
-    
-    cachedCTLabels.unitStr = WT.DB.CombatTracker.RangeUnit or "m"
-    cachedCTLabels.tc = WT.Colors:GetHex(WT.DB.CombatTracker.TextColor, 1, 1, 1)
-    cachedCTLabels.vc = WT.Colors:GetHex(WT.DB.CombatTracker.ValueColor, 1, 0.82, 0)
-    
-    local mRange = SafeNum(WT.DB.CombatTracker.MaxRange)
-    if mRange ~= mRange or mRange == math.huge or mRange == -math.huge then mRange = 45 end
-    cachedCTLabels.maxRange = (mRange and mRange > 5) and mRange or 45
-    
+    cachedCTLabels.timeLabel = ResolveLabel(db.TimeLabel, WT.L.CT_TIME)
+    cachedCTLabels.rangeLabel = ResolveLabel(db.RangeLabel, WT.L.CT_RANGE)
+
+    cachedCTLabels.unitStr = db.RangeUnit or "m"
+    cachedCTLabels.tc = WT.Colors:GetHex(db.TextColor, 1, 1, 1)
+    cachedCTLabels.vc = WT.Colors:GetHex(db.ValueColor, 1, 0.82, 0)
+    cachedCTLabels.warnColor = WT.Colors:GetHex(db.BossTimeWarnColor, 1, 0.2, 0.2)
+    cachedCTLabels.sepFormat = "|c" .. WT.Colors:GetHex(db.SeparatorColor, 0.5, 0.5, 0.5) .. (db.Separator or " | ") .. "|r"
+
+    local maxRange = SafeNum(db.MaxRange)
+    cachedCTLabels.maxRange = (maxRange and maxRange > 5 and maxRange < math.huge) and maxRange or 45
+
     wipe(rColCache)
     wipe(rangePartCache)
     lastTimeStrCache = ""
-    
-    local sc = WT.Colors:GetHex(WT.DB.CombatTracker.SeparatorColor, 0.5, 0.5, 0.5)
-    cachedCTLabels.sepFormat = "|c" .. sc .. (WT.DB.CombatTracker.Separator or " | ") .. "|r"
+end
 
-    if not ctFrame then
-        ctFrame = CreateFrame("Frame", "WTCombatTracker", _G["WT_UIContainer"])
-        ctFrame:SetFrameStrata(WT.DB.CombatTracker.Strata or "MEDIUM")
-        
-        ctFrame.ignoreInLayout = true
-        ctFrame.ignoreFramePositionManager = true
-        if ctFrame.SetIsFramePositionManaged then pcall(function() ctFrame:SetIsFramePositionManaged(false) end) end
-        
-        ctFrame.bg = ctFrame:CreateTexture(nil, "BACKGROUND")
-        ctFrame.bg:SetPoint("TOPLEFT", 1, -1)
-        ctFrame.bg:SetPoint("BOTTOMRIGHT", -1, 1)
-        ctFrame.bg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-        
-        ctFrame.top = ctFrame:CreateTexture(nil, "BORDER")
-        ctFrame.top:SetPoint("TOPLEFT", 0, 0); ctFrame.top:SetPoint("TOPRIGHT", 0, 0); ctFrame.top:SetHeight(1)
-        ctFrame.top:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-        ctFrame.bot = ctFrame:CreateTexture(nil, "BORDER")
-        ctFrame.bot:SetPoint("BOTTOMLEFT", 0, 0); ctFrame.bot:SetPoint("BOTTOMRIGHT", 0, 0); ctFrame.bot:SetHeight(1)
-        ctFrame.bot:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-        ctFrame.left = ctFrame:CreateTexture(nil, "BORDER")
-        ctFrame.left:SetPoint("TOPLEFT", 0, 0); ctFrame.left:SetPoint("BOTTOMLEFT", 0, 0); ctFrame.left:SetWidth(1)
-        ctFrame.left:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-        ctFrame.right = ctFrame:CreateTexture(nil, "BORDER")
-        ctFrame.right:SetPoint("TOPRIGHT", 0, 0); ctFrame.right:SetPoint("BOTTOMRIGHT", 0, 0); ctFrame.right:SetWidth(1)
-        ctFrame.right:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-        
-        ctFrame.text = ctFrame:CreateFontString(nil, "OVERLAY")
-        ctFrame.text:SetPoint("LEFT", ctFrame, "LEFT", 10, 0)
-        ctFrame.text:SetJustifyH("LEFT")
-        
-        ctFrame:RegisterForDrag("LeftButton")
-        ctFrame:SetScript("OnDragStart", function(self)
-            local mod = WT.DB.CombatTracker.MoveModifier or "ALT"
-            local canMove = (mod == "SHIFT" and IsShiftKeyDown()) or (mod == "CTRL" and IsControlKeyDown()) or (mod == "ALT" and IsAltKeyDown())
-            if WT.DB.CombatTracker.Movable and canMove then self:StartMoving() end
-        end)
-        
-        ctFrame:SetScript("OnDragStop", function(self)
-            self:StopMovingOrSizing()
-            
-            local left = self:GetLeft()
-            local top = self:GetTop()
-            if left and top then
-                self:ClearAllPoints()
-                self:SetPoint("TOPLEFT", _G["WT_UIContainer"], "BOTTOMLEFT", left, top)
-            end
-            
-            local p, _, rP, x, y = self:GetPoint()
-            if not WT.DB.Internal.Positions then WT.DB.Internal.Positions = {} end
-            WT.DB.Internal.Positions["WTCombatTracker"] = { point = p, relativeTo = "UIParent", relativePoint = rP, xOfs = x, yOfs = y }
-        end)
-        
-        WT.Core.Events:Register("PLAYER_REGEN_DISABLED", function() inCombat = true; combatStartTime = GetTime(); UpdateCTVisibility() end)
-        WT.Core.Events:Register("PLAYER_REGEN_ENABLED", function() inCombat = false; UpdateCTVisibility() end)
-        WT.Core.Events:Register("ENCOUNTER_START", function() inEncounter = true; encounterStartTime = GetTime(); UpdateCTVisibility() end)
-        WT.Core.Events:Register("ENCOUNTER_END", function() inEncounter = false; UpdateCTVisibility() end)
-        WT.Core.Events:Register("PLAYER_TARGET_CHANGED", function() UpdateCTVisibility() end)
-        WT.Core.Events:Register("MODIFIER_STATE_CHANGED", function() UpdateCTVisibility() end)
+local function SavePosition(frame)
+    local left, top = frame:GetLeft(), frame:GetTop()
+    if not left or not top then return end
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", _G["WT_UIContainer"], "BOTTOMLEFT", left, top)
+    WT.DB.Internal.Positions = WT.DB.Internal.Positions or {}
+    WT.DB.Internal.Positions[POSITION_KEY] = {
+        point = "TOPLEFT", relativeTo = "UIParent", relativePoint = "BOTTOMLEFT", xOfs = left, yOfs = top,
+    }
+end
+
+local function IsMoveModifierDown()
+    local modifier = WT.DB.CombatTracker.MoveModifier or "ALT"
+    return (modifier == "SHIFT" and IsShiftKeyDown()) or (modifier == "CTRL" and IsControlKeyDown())
+        or (modifier == "ALT" and IsAltKeyDown())
+end
+
+local function CreateTrackerFrame()
+    local frame = CreateFrame("Frame", "WTCombatTracker", _G["WT_UIContainer"])
+    frame.ignoreInLayout = true
+    frame.ignoreFramePositionManager = true
+
+    local function Edge(...)
+        local tex = frame:CreateTexture(nil, "BORDER")
+        tex:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+        for i = 1, select("#", ...), 2 do
+            local point = select(i, ...)
+            tex:SetPoint(point, 0, 0)
+            tex:SetPoint(select(i + 1, ...), 0, 0)
+        end
+        return tex
     end
-    
-    WT.Core.Events:UnregisterOnUpdate(UpdateCTText)
-    local updateRate = WT.DB.CombatTracker.ShowMilliseconds and 0.02 or 0.04
-    WT.Core.Events:RegisterOnUpdate(UpdateCTText, updateRate, "CombatTracker")
-    
-    local fontKey = WT.DB.CombatTracker.Font or "Friz Quadrata TT"
-    local fontPath = (WT.Utils and WT.Utils.SharedMedia and WT.Utils.SharedMedia:Fetch("font", fontKey)) or "Fonts\\FRIZQT__.TTF"
-    local size = SafeNum(WT.DB.CombatTracker.FontSize) or 0
-    if size == 0 then size = 10 end
-    local outline = (WT.DB.CombatTracker.FontOutline == "NONE") and "" or (WT.DB.CombatTracker.FontOutline or "OUTLINE")
+
+    frame.bg = frame:CreateTexture(nil, "BACKGROUND")
+    frame.bg:SetPoint("TOPLEFT", 1, -1)
+    frame.bg:SetPoint("BOTTOMRIGHT", -1, 1)
+    frame.bg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    frame.top = Edge("TOPLEFT", "TOPRIGHT"); frame.top:SetHeight(1)
+    frame.bot = Edge("BOTTOMLEFT", "BOTTOMRIGHT"); frame.bot:SetHeight(1)
+    frame.left = Edge("TOPLEFT", "BOTTOMLEFT"); frame.left:SetWidth(1)
+    frame.right = Edge("TOPRIGHT", "BOTTOMRIGHT"); frame.right:SetWidth(1)
+
+    frame.text = frame:CreateFontString(nil, "OVERLAY")
+    frame.text:SetPoint("LEFT", frame, "LEFT", 10, 0)
+    frame.text:SetJustifyH("LEFT")
+
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", function(self)
+        if WT.DB.CombatTracker.Movable and IsMoveModifierDown() then self:StartMoving() end
+    end)
+    frame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        SavePosition(self)
+    end)
+    return frame
+end
+
+local function ApplyStyle()
+    local db = WT.DB.CombatTracker
+    local container = _G["WT_UIContainer"]
+
+    local fontPath = (WT.Utils.SharedMedia and WT.Utils.SharedMedia:Fetch("font", db.Font)) or "Fonts\\FRIZQT__.TTF"
+    local size = SafeNum(db.FontSize) or 10
+    if size <= 0 then size = 10 end
+    local outline = (db.FontOutline == "NONE") and "" or (db.FontOutline or "OUTLINE")
     ctFrame.text:SetFont(fontPath, size, outline)
     ctFrame:SetHeight(size + 14)
-    
-    ctFrame:SetFrameStrata(WT.DB.CombatTracker.Strata or "MEDIUM")
-    
-    if WT.DB.CombatTracker.Background then
-        local bg = WT.DB.CombatTracker.BgColor or {r=WT.Colors.STD_BG_R, g=WT.Colors.STD_BG_G, b=WT.Colors.STD_BG_B, a=WT.Colors.STD_BG_A}
-        if type(bg) == "string" then bg = {r=WT.Colors.STD_BG_R, g=WT.Colors.STD_BG_G, b=WT.Colors.STD_BG_B, a=WT.Colors.STD_BG_A} end
+    ctFrame:SetFrameStrata(db.Strata or "MEDIUM")
+
+    if db.Background then
+        local bg = type(db.BgColor) == "table" and db.BgColor or {}
         ctFrame.bg:SetVertexColor(bg.r or WT.Colors.STD_BG_R, bg.g or WT.Colors.STD_BG_G, bg.b or WT.Colors.STD_BG_B, bg.a or WT.Colors.STD_BG_A)
     else
         ctFrame.bg:SetVertexColor(0, 0, 0, 0)
     end
-    
-    if WT.DB.CombatTracker.Border then
-        local bc = WT.DB.CombatTracker.BorderColor or {r=1, g=1, b=1, a=1}
-        if type(bc) == "string" then bc = {r=1, g=1, b=1, a=1} end
-        ctFrame.top:SetVertexColor(bc.r or 1, bc.g or 1, bc.b or 1, bc.a or 1)
-        ctFrame.bot:SetVertexColor(bc.r or 1, bc.g or 1, bc.b or 1, bc.a or 1)
-        ctFrame.left:SetVertexColor(bc.r or 1, bc.g or 1, bc.b or 1, bc.a or 1)
-        ctFrame.right:SetVertexColor(bc.r or 1, bc.g or 1, bc.b or 1, bc.a or 1)
-    else
-        ctFrame.top:SetVertexColor(0, 0, 0, 0)
-        ctFrame.bot:SetVertexColor(0, 0, 0, 0)
-        ctFrame.left:SetVertexColor(0, 0, 0, 0)
-        ctFrame.right:SetVertexColor(0, 0, 0, 0)
+
+    local r, g, b, a = 0, 0, 0, 0
+    if db.Border then
+        local bc = type(db.BorderColor) == "table" and db.BorderColor or {}
+        r, g, b, a = bc.r or 1, bc.g or 1, bc.b or 1, bc.a or 1
     end
-    
-    ctFrame:SetMovable(WT.DB.CombatTracker.Movable)
-    ctFrame:EnableMouse(WT.DB.CombatTracker.Movable)
-    
-    if WT.DB.Internal.Positions and WT.DB.Internal.Positions["WTCombatTracker"] then
-        local pos = WT.DB.Internal.Positions["WTCombatTracker"]
-        ctFrame:ClearAllPoints(); ctFrame:SetPoint(pos.point, UIParent, pos.relativePoint, pos.xOfs, pos.yOfs)
-    else
-        ctFrame:ClearAllPoints(); ctFrame:SetPoint("LEFT", UIParent, "CENTER", 0, -150)
+    for _, edge in ipairs({ ctFrame.top, ctFrame.bot, ctFrame.left, ctFrame.right }) do
+        edge:SetVertexColor(r, g, b, a)
     end
-    
-    UpdateCTVisibility(); UpdateCTText()
+
+    ctFrame:SetMovable(db.Movable and true or false)
+    ctFrame:EnableMouse(db.Movable and true or false)
+
+    ctFrame:ClearAllPoints()
+    local pos = WT.DB.Internal.Positions and WT.DB.Internal.Positions[POSITION_KEY]
+    if pos then
+        ctFrame:SetPoint(pos.point, container, pos.relativePoint, pos.xOfs, pos.yOfs)
+    else
+        ctFrame:SetPoint("LEFT", container, "CENTER", 0, -150)
+    end
+end
+
+-- Duration as mm:ss for chat output (independent of the display formatting and its caches)
+local function FormatDuration(seconds)
+    seconds = math_floor(math.max(0, seconds))
+    return string.format("%02d:%02d", math_floor(seconds / 60), seconds % 60)
+end
+
+local MIN_PRINT_DURATION = 3     -- ignore tiny fights (e.g. a single critter)
+local encounterEnded = false     -- a boss fight ended during the current combat
+
+local function OnCombatEnd()
+    -- Shown with /wt debug: helps to find out why a fight was (not) printed
+    WT.Utils.Logger:Debug(string.format(WT.L.MSG_DEBUG_CT_COMBAT_END, GetTime() - combatStartTime,
+        tostring(WT.DB.CombatTracker.PrintCombatTime), tostring(encounterEnded)))
+
+    -- After a boss fight the boss duration is kept (as shown during the encounter)
+    if not encounterEnded then
+        local duration = GetTime() - combatStartTime
+        lastCombatDuration = duration
+        if WT.DB.CombatTracker.PrintCombatTime and duration >= MIN_PRINT_DURATION then
+            WT.Utils.Logger:Print(string.format(WT.L.MSG_CT_COMBAT_TIME, FormatDuration(duration)))
+        end
+    end
+    encounterEnded = false
+end
+
+-- Payload of ENCOUNTER_END: encounterID, encounterName, difficultyID, groupSize, success
+local function OnEncounterEnd(_, _, encounterName, _, _, success)
+    local duration = GetTime() - encounterStartTime
+    lastCombatDuration = duration
+    encounterEnded = true
+    if WT.DB.CombatTracker.PrintCombatTime and duration >= MIN_PRINT_DURATION then
+        local name = WT.Utils.Safety.Unsecret(encounterName) or ""
+        local message = (success == 1) and WT.L.MSG_CT_ENCOUNTER_KILL or WT.L.MSG_CT_ENCOUNTER_WIPE
+        WT.Utils.Logger:Print(string.format(message, name, FormatDuration(duration)))
+    end
+end
+
+local eventsRegistered = false
+local function RegisterTrackerEvents(module)
+    if eventsRegistered then return end
+    eventsRegistered = true
+
+    -- The tracker may be enabled in the middle of a fight
+    inCombat = InCombatLockdown()
+    if inCombat then combatStartTime = GetTime() end
+
+    module:RegisterEvent("PLAYER_REGEN_DISABLED", function() inCombat = true; combatStartTime = GetTime(); UpdateCTVisibility() end)
+    module:RegisterEvent("PLAYER_REGEN_ENABLED", function() inCombat = false; OnCombatEnd(); UpdateCTVisibility() end)
+    module:RegisterEvent("ENCOUNTER_START", function() inEncounter = true; encounterStartTime = GetTime(); UpdateCTVisibility() end)
+    module:RegisterEvent("ENCOUNTER_END", function(...) inEncounter = false; OnEncounterEnd(...); UpdateCTVisibility() end)
+    module:RegisterEvent("PLAYER_TARGET_CHANGED", UpdateCTVisibility)
+    module:RegisterEvent("MODIFIER_STATE_CHANGED", UpdateCTVisibility)
+end
+
+--- Applies the current settings. Called on login and whenever an option changes.
+function Module:Refresh()
+    local db = WT.DB.CombatTracker
+    local showDisplay = db.ShowRange or db.ShowCombatTime or isPreviewMode
+    if not showDisplay then
+        if ctFrame then ctFrame:Hide() end
+        self:UnregisterOnUpdate(UpdateCTText)
+    end
+    if not showDisplay and not db.PrintCombatTime then
+        -- Removes every event and the update ticker of this module
+        WT.Core.Events:UnregisterAll(self.name)
+        eventsRegistered = false
+        return
+    end
+
+    -- The chat output alone only needs the combat events
+    RegisterTrackerEvents(self)
+    if not showDisplay then return end
+
+    BuildLabels()
+    ctFrame = ctFrame or CreateTrackerFrame()
+    ApplyStyle()
+    self:RegisterOnUpdate(UpdateCTText, db.ShowMilliseconds and 0.02 or 0.04)
+
+    ctFrame.wtLastText = nil
+    UpdateCTVisibility()
+    UpdateCTText()
 end
 
 function Module:PreviewTracker()
     if isPreviewMode then return end
     isPreviewMode = true
     previewStartTime = GetTime()
-    UpdateCTVisibility()
-    UpdateCTText()
+    self:Refresh()
     C_Timer.After(10, function()
         isPreviewMode = false
-        UpdateCTVisibility()
-        UpdateCTText()
+        self:Refresh()
     end)
 end
 
-function Module:Initialize()
-    if not WT.DB.Modules.CombatTracker then return end
-    
-    -- PRE-CACHE: The Item API often returns 'nil' if the items haven't been loaded in the client yet.
-    -- We force a one-time fetch here so the real-time distance runs buttery smooth immediately!
-    local function PreCacheItem(itemID)
-        if type(itemID) ~= "number" then return end
-        if C_Item and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(itemID)
-        elseif C_Item and C_Item.GetItemInfo then C_Item.GetItemInfo(itemID)
-        elseif _G["GetItem".."Info"] then _G["GetItem".."Info"](itemID) end
-    end
-    for _, data in ipairs(ranges) do PreCacheItem(data.item) end
-    for _, data in ipairs(friendRanges) do PreCacheItem(data.item) end
-    
-    UpdateItemCache()
-    WT.Core.Events:Register("BAG_UPDATE_DELAYED", UpdateItemCache)
-    
-    self:SetupTracker()
+function Module:OnEnable()
+    self:Refresh()
 end
-
-WT.Core.Events:Register("PLAYER_LOGIN", function() Module:Initialize() end)
 
 function Module:BuildOptions(builder, panel)
     local function AddDescription(text)
@@ -502,22 +474,27 @@ function Module:BuildOptions(builder, panel)
     AddDescription(WT.L.OPT_DESC_GROUP_CT_BEHAVIOR)
     
     local orderOptions = { { value = "RANGE_TIME", label = WT.L.OPT_CT_ORDER_RT }, { value = "TIME_RANGE", label = WT.L.OPT_CT_ORDER_TR } }
-    panel:CreateDropdown(builder, WT.L.OPT_CT_ORDER, WT.L.OPT_DESC_CT_ORDER, "CombatTracker", "DisplayOrder", orderOptions, function() self:SetupTracker() end)
+    panel:CreateDropdown(builder, WT.L.OPT_CT_ORDER, WT.L.OPT_DESC_CT_ORDER, "CombatTracker", "DisplayOrder", orderOptions, function() self:Refresh() end)
 
-    local rangeInit = panel:CreateCheckbox(builder, WT.L.OPT_CT_SHOW_RANGE, WT.L.OPT_DESC_CT_SHOW_RANGE, "CombatTracker", "ShowRange", function() self:SetupTracker() end)
-    panel:CreateCheckbox(builder, WT.L.OPT_CT_ALWAYS_RANGE, WT.L.OPT_DESC_CT_ALWAYS_RANGE, "CombatTracker", "AlwaysShowRange", function() self:SetupTracker() end, rangeInit)
-    panel:CreateCheckbox(builder, WT.L.OPT_CT_COLORIZE_RANGE, WT.L.OPT_DESC_CT_COLORIZE_RANGE, "CombatTracker", "ColorizeRange", function() self:SetupTracker() end, rangeInit)
-    local unitOptions = { { value = "m", label = "Meter (m)" }, { value = "yd", label = "Yards (yd)" }, { value = "NONE", label = WT.L.OPT_CT_RANGE_NONE } }
-    panel:CreateDropdown(builder, WT.L.OPT_CT_RANGE_UNIT, WT.L.OPT_DESC_CT_RANGE_UNIT, "CombatTracker", "RangeUnit", unitOptions, function() self:SetupTracker() end, rangeInit)
-    panel:CreateSlider(builder, WT.L.OPT_CT_MAX_RANGE, WT.L.OPT_DESC_CT_MAX_RANGE, "CombatTracker", "MaxRange", 45, 100, 5, function() self:SetupTracker() end, rangeInit)
-    panel:CreateEditBox(builder, WT.L.OPT_CT_RANGE_LABEL, WT.L.OPT_DESC_CT_RANGE_LABEL, "CombatTracker", "RangeLabel", rangeInit, function() self:SetupTracker() end)
+    local rangeInit = panel:CreateCheckbox(builder, WT.L.OPT_CT_SHOW_RANGE, WT.L.OPT_DESC_CT_SHOW_RANGE, "CombatTracker", "ShowRange", function() self:Refresh() end)
+    panel:CreateCheckbox(builder, WT.L.OPT_CT_ALWAYS_RANGE, WT.L.OPT_DESC_CT_ALWAYS_RANGE, "CombatTracker", "AlwaysShowRange", function() self:Refresh() end, rangeInit)
+    panel:CreateCheckbox(builder, WT.L.OPT_CT_COLORIZE_RANGE, WT.L.OPT_DESC_CT_COLORIZE_RANGE, "CombatTracker", "ColorizeRange", function() self:Refresh() end, rangeInit)
+    local unitOptions = { { value = "m", label = WT.L.OPT_CT_UNIT_METER }, { value = "yd", label = WT.L.OPT_CT_UNIT_YARDS }, { value = "NONE", label = WT.L.OPT_CT_RANGE_NONE } }
+    panel:CreateDropdown(builder, WT.L.OPT_CT_RANGE_UNIT, WT.L.OPT_DESC_CT_RANGE_UNIT, "CombatTracker", "RangeUnit", unitOptions, function() self:Refresh() end, rangeInit)
+    panel:CreateSlider(builder, WT.L.OPT_CT_MAX_RANGE, WT.L.OPT_DESC_CT_MAX_RANGE, "CombatTracker", "MaxRange", 45, 100, 5, function() self:Refresh() end, rangeInit)
+    panel:CreateEditBox(builder, WT.L.OPT_CT_RANGE_LABEL, WT.L.OPT_DESC_CT_RANGE_LABEL, "CombatTracker", "RangeLabel", rangeInit, function() self:Refresh() end)
     
-    local timeInit = panel:CreateCheckbox(builder, WT.L.OPT_CT_SHOW_TIME, WT.L.OPT_DESC_CT_SHOW_TIME, "CombatTracker", "ShowCombatTime", function() self:SetupTracker() end)
-    panel:CreateCheckbox(builder, WT.L.OPT_CT_ALWAYS_TIME, WT.L.OPT_DESC_CT_ALWAYS_TIME, "CombatTracker", "AlwaysShowTimer", function() self:SetupTracker() end, timeInit)
-    panel:CreateCheckbox(builder, WT.L.OPT_CT_KEEP_LAST_TIME, WT.L.OPT_DESC_CT_KEEP_LAST_TIME, "CombatTracker", "KeepLastTime", function() self:SetupTracker() end, timeInit)
-    panel:CreateCheckbox(builder, WT.L.OPT_CT_SHOW_MS, WT.L.OPT_DESC_CT_SHOW_MS, "CombatTracker", "ShowMilliseconds", function() self:SetupTracker() end, timeInit)
-    panel:CreateEditBox(builder, WT.L.OPT_CT_TIME_LABEL, WT.L.OPT_DESC_CT_TIME_LABEL, "CombatTracker", "TimeLabel", timeInit, function() self:SetupTracker() end)
-    panel:CreateCheckbox(builder, WT.L.OPT_CT_HIDE_OOC, WT.L.OPT_DESC_CT_HIDE_OOC, "CombatTracker", "HideOutOfCombat", function() self:SetupTracker() end)
+    local timeInit = panel:CreateCheckbox(builder, WT.L.OPT_CT_SHOW_TIME, WT.L.OPT_DESC_CT_SHOW_TIME, "CombatTracker", "ShowCombatTime", function() self:Refresh() end)
+    panel:CreateCheckbox(builder, WT.L.OPT_CT_ALWAYS_TIME, WT.L.OPT_DESC_CT_ALWAYS_TIME, "CombatTracker", "AlwaysShowTimer", function() self:Refresh() end, timeInit)
+    panel:CreateCheckbox(builder, WT.L.OPT_CT_KEEP_LAST_TIME, WT.L.OPT_DESC_CT_KEEP_LAST_TIME, "CombatTracker", "KeepLastTime", function() self:Refresh() end, timeInit)
+    panel:CreateCheckbox(builder, WT.L.OPT_CT_SHOW_MS, WT.L.OPT_DESC_CT_SHOW_MS, "CombatTracker", "ShowMilliseconds", function() self:Refresh() end, timeInit)
+    panel:CreateEditBox(builder, WT.L.OPT_CT_TIME_LABEL, WT.L.OPT_DESC_CT_TIME_LABEL, "CombatTracker", "TimeLabel", timeInit, function() self:Refresh() end)
+    panel:CreateCheckbox(builder, WT.L.OPT_CT_HIDE_OOC, WT.L.OPT_DESC_CT_HIDE_OOC, "CombatTracker", "HideOutOfCombat", function() self:Refresh() end, timeInit)
+    local warnInit = panel:CreateCheckbox(builder, WT.L.OPT_CT_BOSS_WARN, WT.L.OPT_DESC_CT_BOSS_WARN, "CombatTracker", "BossTimeWarn", function() self:Refresh() end, timeInit)
+    panel:CreateSlider(builder, WT.L.OPT_CT_BOSS_WARN_SECONDS, WT.L.OPT_DESC_CT_BOSS_WARN_SECONDS, "CombatTracker", "BossTimeWarnSeconds", 30, 900, 15, function() self:Refresh() end, warnInit)
+    panel:CreateColorPicker(builder, WT.L.OPT_CT_BOSS_WARN_COLOR, WT.L.OPT_DESC_CT_BOSS_WARN_COLOR, "CombatTracker", "BossTimeWarnColor", false, warnInit, function() self:Refresh() end)
+    -- Independent of the display: also works with range and combat time hidden
+    panel:CreateCheckbox(builder, WT.L.OPT_CT_PRINT_TIME, WT.L.OPT_DESC_CT_PRINT_TIME, "CombatTracker", "PrintCombatTime", function() self:Refresh() end)
     
     panel:CreateTitle(builder, WT.L.GROUP_CT_APPEARANCE)
     AddDescription(WT.L.OPT_DESC_GROUP_CT_APPEARANCE)
@@ -527,25 +504,25 @@ function Module:BuildOptions(builder, panel)
     end)
     builder:AddSpace(10)
     
-    local moveInit = panel:CreateCheckbox(builder, WT.L.OPT_SW_MOVABLE, WT.L.OPT_DESC_SW_MOVABLE, "CombatTracker", "Movable", function() self:SetupTracker() end)
+    local moveInit = panel:CreateCheckbox(builder, WT.L.OPT_SW_MOVABLE, WT.L.OPT_DESC_SW_MOVABLE, "CombatTracker", "Movable", function() self:Refresh() end)
     local modOptions = { { value = "ALT", label = "ALT" }, { value = "CTRL", label = "CTRL" }, { value = "SHIFT", label = "SHIFT" } }
     panel:CreateDropdown(builder, WT.L.OPT_SW_MOVE_MODIFIER, WT.L.OPT_DESC_SW_MOVE_MODIFIER, "CombatTracker", "MoveModifier", modOptions, nil, moveInit)
-    panel:CreateStrataDropdown(builder, WT.L.OPT_STRATA, WT.L.OPT_DESC_STRATA, "CombatTracker", "Strata", function() self:SetupTracker() end)
+    panel:CreateStrataDropdown(builder, WT.L.OPT_STRATA, WT.L.OPT_DESC_STRATA, "CombatTracker", "Strata", function() self:Refresh() end)
     
     if WT.Utils and WT.Utils.SharedMedia then
-        panel:CreateDropdown(builder, WT.L.OPT_FONT, WT.L.OPT_DESC_FONT, "CombatTracker", "Font", WT.Utils.SharedMedia:GetOptions("font"), function() self:SetupTracker() end)
+        panel:CreateDropdown(builder, WT.L.OPT_FONT, WT.L.OPT_DESC_FONT, "CombatTracker", "Font", WT.Utils.SharedMedia:GetOptions("font"), function() self:Refresh() end)
     end
-    panel:CreateSlider(builder, WT.L.OPT_FONT_SIZE, WT.L.OPT_DESC_FONT_SIZE, "CombatTracker", "FontSize", 8, 36, 1, function() self:SetupTracker() end)
-    panel:CreateOutlineDropdown(builder, WT.L.OPT_FONT_OUTLINE, WT.L.OPT_DESC_FONT_OUTLINE, "CombatTracker", "FontOutline", function() self:SetupTracker() end)
+    panel:CreateSlider(builder, WT.L.OPT_FONT_SIZE, WT.L.OPT_DESC_FONT_SIZE, "CombatTracker", "FontSize", 8, 36, 1, function() self:Refresh() end)
+    panel:CreateOutlineDropdown(builder, WT.L.OPT_FONT_OUTLINE, WT.L.OPT_DESC_FONT_OUTLINE, "CombatTracker", "FontOutline", function() self:Refresh() end)
     
-    local bgInit = panel:CreateCheckbox(builder, WT.L.OPT_SW_BACKGROUND, WT.L.OPT_DESC_SW_BACKGROUND, "CombatTracker", "Background", function() self:SetupTracker() end)
-    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_BG, WT.L.OPT_DESC_COLOR_BG, "CombatTracker", "BgColor", true, bgInit, function() self:SetupTracker() end)
-    local borderInit = panel:CreateCheckbox(builder, WT.L.OPT_SW_BORDER, WT.L.OPT_DESC_SW_BORDER, "CombatTracker", "Border", function() self:SetupTracker() end)
-    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_BORDER, WT.L.OPT_DESC_COLOR_BORDER, "CombatTracker", "BorderColor", true, borderInit, function() self:SetupTracker() end)
+    local bgInit = panel:CreateCheckbox(builder, WT.L.OPT_SW_BACKGROUND, WT.L.OPT_DESC_SW_BACKGROUND, "CombatTracker", "Background", function() self:Refresh() end)
+    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_BG, WT.L.OPT_DESC_COLOR_BG, "CombatTracker", "BgColor", true, bgInit, function() self:Refresh() end)
+    local borderInit = panel:CreateCheckbox(builder, WT.L.OPT_SW_BORDER, WT.L.OPT_DESC_SW_BORDER, "CombatTracker", "Border", function() self:Refresh() end)
+    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_BORDER, WT.L.OPT_DESC_COLOR_BORDER, "CombatTracker", "BorderColor", true, borderInit, function() self:Refresh() end)
     
-    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_TEXT, WT.L.OPT_DESC_COLOR_TEXT, "CombatTracker", "TextColor", true, nil, function() self:SetupTracker() end)
-    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_VALUE, WT.L.OPT_DESC_COLOR_VALUE, "CombatTracker", "ValueColor", true, nil, function() self:SetupTracker() end)
+    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_TEXT, WT.L.OPT_DESC_COLOR_TEXT, "CombatTracker", "TextColor", true, nil, function() self:Refresh() end)
+    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_VALUE, WT.L.OPT_DESC_COLOR_VALUE, "CombatTracker", "ValueColor", true, nil, function() self:Refresh() end)
     
-    local sepInit = panel:CreateEditBox(builder, WT.L.OPT_SEPARATOR, WT.L.OPT_DESC_SEPARATOR, "CombatTracker", "Separator", nil, function() self:SetupTracker() end)
-    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_SEP, WT.L.OPT_DESC_COLOR_SEP, "CombatTracker", "SeparatorColor", true, sepInit, function() self:SetupTracker() end)
+    local sepInit = panel:CreateEditBox(builder, WT.L.OPT_SEPARATOR, WT.L.OPT_DESC_SEPARATOR, "CombatTracker", "Separator", nil, function() self:Refresh() end)
+    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_SEP, WT.L.OPT_DESC_COLOR_SEP, "CombatTracker", "SeparatorColor", true, sepInit, function() self:Refresh() end)
 end
