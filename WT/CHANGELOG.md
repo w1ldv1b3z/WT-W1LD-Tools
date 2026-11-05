@@ -45,6 +45,9 @@
 - Commands: New `/wt debug` command to switch debug messages in chat on or off. The debug mode had no way to be enabled anymore.
 
 ### Changed
+- Options: The options menu has been reorganized. Instead of 14 separate tabs there are now a few areas with sub pages that you can expand in the left list: Interface, Widgets, Chat, Graphics & Effects, Convenience & Automation, Audio and Profiles & Sync. Options that were in unexpected places moved to where you would look for them (e.g. the FPS & latency widget is now under Widgets, class colors under Interface, the bar fader on the Action Bars page, chat hotkeys under Chat). Your settings are not changed.
+- Options: Sub options are now indented below the option they belong to, over several levels, and are greyed out while that option is off.
+- Options / Main Page: New layout with a header showing the exact game build, clickable tiles for all option areas and a redesigned thank-you section.
 - General: Module switches are being phased out. Every WT feature stays off until you enable it yourself, and turning a feature off immediately restores the game's default. First step: the "Maps" module switch is gone; the minimap and map coordinate options are now always available.
 - Action Bars: The "Action Bars" module switch is gone; its options are always available.
 - Action Bars: Removed "Key Down Casts", "Auto Push Spells" and "Hide Blizzard Numbers" because the game's own options (Esc > Options > Gameplay) offer them itself. The spell queue window stays, as the game has no setting for it; the slider now always shows the game's current value.

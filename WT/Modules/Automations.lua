@@ -1171,7 +1171,9 @@ WT.Core.Events:Register("PLAYER_LOGIN", function()
 end)
 
 -- Function to build the module's option panel
-function Module:BuildOptions(builder, panel)
+function Module:BuildOptions(builder, panel, part)
+    -- "part" builds only one section when the module is spread over several options pages
+    local function ShowPart(name) return part == nil or part == name end
     local function AddDescription(text)
         if not text then return end
         local desc = builder.content:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
@@ -1182,69 +1184,75 @@ function Module:BuildOptions(builder, panel)
         builder:AddSpace(desc:GetStringHeight() + 25)
     end
 
-    panel:CreateTitle(builder, WT.L.GROUP_CHARACTER)
-    AddDescription(WT.L.OPT_DESC_GROUP_CHARACTER)
+    if ShowPart("General") then
+        panel:CreateTitle(builder, WT.L.GROUP_CHARACTER)
+        AddDescription(WT.L.OPT_DESC_GROUP_CHARACTER)
 
-    panel:CreateCheckbox(builder, WT.L.OPT_AUTO_DISMOUNT, WT.L.OPT_DESC_AUTO_DISMOUNT, "Automations", "AutoDismount",
-        function(value) self:UpdateAutoDismount(value) end)
-    panel:CreateCheckbox(builder, WT.L.OPT_AUTO_STAND, WT.L.OPT_DESC_AUTO_STAND, "Automations", "AutoStand",
-        function(value) self:UpdateAutoStand(value) end)
+        panel:CreateCheckbox(builder, WT.L.OPT_AUTO_DISMOUNT, WT.L.OPT_DESC_AUTO_DISMOUNT, "Automations", "AutoDismount",
+            function(value) self:UpdateAutoDismount(value) end)
+        panel:CreateCheckbox(builder, WT.L.OPT_AUTO_STAND, WT.L.OPT_DESC_AUTO_STAND, "Automations", "AutoStand",
+            function(value) self:UpdateAutoStand(value) end)
 
-    local petInit = panel:CreateCheckbox(builder, WT.L.OPT_AUTO_SUMMON_PET, WT.L.OPT_DESC_AUTO_SUMMON_PET, "Automations",
-        "AutoSummonPet")
-    panel:CreateEditBox(builder, WT.L.OPT_AUTO_SUMMON_PET_NAME, WT.L.OPT_DESC_AUTO_SUMMON_PET_NAME, "Automations",
-        "AutoSummonPetName", petInit)
+        local petInit = panel:CreateCheckbox(builder, WT.L.OPT_AUTO_SUMMON_PET, WT.L.OPT_DESC_AUTO_SUMMON_PET, "Automations",
+            "AutoSummonPet")
+        panel:CreateEditBox(builder, WT.L.OPT_AUTO_SUMMON_PET_NAME, WT.L.OPT_DESC_AUTO_SUMMON_PET_NAME, "Automations",
+            "AutoSummonPetName", petInit)
 
-    panel:CreateTitle(builder, WT.L.GROUP_ROGUE_POISONS)
-    local _, playerClass = UnitClass("player")
-    local isRogue = (playerClass == "ROGUE")
-    local classSuffix = not isRogue and (" |cFF888888" .. (WT.L.LBL_ROGUE_ONLY) .. "|r") or ""
-    AddDescription((WT.L.OPT_DESC_GROUP_ROGUE_POISONS) ..
-    classSuffix)
+    end
+    if ShowPart("ClassHelpers") then
+        panel:CreateTitle(builder, WT.L.GROUP_ROGUE_POISONS)
+        local _, playerClass = UnitClass("player")
+        local isRogue = (playerClass == "ROGUE")
+        local classSuffix = not isRogue and (" |cFF888888" .. (WT.L.LBL_ROGUE_ONLY) .. "|r") or ""
+        AddDescription((WT.L.OPT_DESC_GROUP_ROGUE_POISONS) ..
+        classSuffix)
 
-    local poisonInit = panel:CreateCheckbox(builder, WT.L.OPT_ROGUE_POISON_REMINDER, WT.L.OPT_DESC_ROGUE_POISON_REMINDER,
-        "Automations", "RoguePoisonReminder", function(value)
-        if self.UpdateRoguePoisonStatus then self:UpdateRoguePoisonStatus() end
-    end)
-    panel:CreateSlider(builder, WT.L.OPT_ROGUE_POISON_THRESHOLD, WT.L.OPT_DESC_ROGUE_POISON_THRESHOLD, "Automations",
-        "RoguePoisonThreshold", 1, 30, 1, function(value)
-        if self.UpdateRoguePoisonStatus then self:UpdateRoguePoisonStatus() end
-    end, poisonInit)
-    panel:CreateSlider(builder, WT.L.OPT_ROGUE_POISON_SCALE, WT.L.OPT_DESC_ROGUE_POISON_SCALE, "Automations",
-        "RoguePoisonScale", 0.5, 2.0, 0.05, function(val)
-        if self.ApplyRoguePoisonScale then self:ApplyRoguePoisonScale(val) end
-    end, poisonInit)
-    local audioInit = panel:CreateCheckbox(builder, WT.L.OPT_ROGUE_POISON_AUDIO, WT.L.OPT_DESC_ROGUE_POISON_AUDIO,
-        "Automations", "RoguePoisonAudio", nil, poisonInit)
-    panel:CreateSoundDropdown(builder, WT.L.OPT_ROGUE_POISON_SOUND, WT.L.OPT_DESC_ROGUE_POISON_SOUND, "Automations",
-        "RoguePoisonSound", audioInit)
-    panel:CreateCheckbox(builder, WT.L.OPT_ROGUE_POISON_CHAT, WT.L.OPT_DESC_ROGUE_POISON_CHAT, "Automations",
-        "RoguePoisonChat", nil, poisonInit)
-    panel:CreateCheckbox(builder, WT.L.OPT_ROGUE_POISON_INSTANCE_ONLY, WT.L.OPT_DESC_ROGUE_POISON_INSTANCE_ONLY,
-        "Automations", "RoguePoisonInstanceOnly", function(value)
-        if self.UpdateRoguePoisonStatus then self:UpdateRoguePoisonStatus() end
-    end, poisonInit)
-    panel:CreateButton(builder, "", WT.L.BTN_POISON_PREVIEW,
-        WT.L.BTN_DESC_POISON_PREVIEW, function()
-        if self.TogglePoisonReminderPreview then self:TogglePoisonReminderPreview() end
-    end, poisonInit)
-    panel:CreateButton(builder, "", WT.L.BTN_RESET_POISON_POS,
-        WT.L.DESC_RESET_POISON_POS, function()
-        if self.ResetRoguePoisonPosition then self:ResetRoguePoisonPosition() end
-    end, poisonInit)
+        local poisonInit = panel:CreateCheckbox(builder, WT.L.OPT_ROGUE_POISON_REMINDER, WT.L.OPT_DESC_ROGUE_POISON_REMINDER,
+            "Automations", "RoguePoisonReminder", function(value)
+            if self.UpdateRoguePoisonStatus then self:UpdateRoguePoisonStatus() end
+        end)
+        panel:CreateSlider(builder, WT.L.OPT_ROGUE_POISON_THRESHOLD, WT.L.OPT_DESC_ROGUE_POISON_THRESHOLD, "Automations",
+            "RoguePoisonThreshold", 1, 30, 1, function(value)
+            if self.UpdateRoguePoisonStatus then self:UpdateRoguePoisonStatus() end
+        end, poisonInit)
+        panel:CreateSlider(builder, WT.L.OPT_ROGUE_POISON_SCALE, WT.L.OPT_DESC_ROGUE_POISON_SCALE, "Automations",
+            "RoguePoisonScale", 0.5, 2.0, 0.05, function(val)
+            if self.ApplyRoguePoisonScale then self:ApplyRoguePoisonScale(val) end
+        end, poisonInit)
+        local audioInit = panel:CreateCheckbox(builder, WT.L.OPT_ROGUE_POISON_AUDIO, WT.L.OPT_DESC_ROGUE_POISON_AUDIO,
+            "Automations", "RoguePoisonAudio", nil, poisonInit)
+        panel:CreateSoundDropdown(builder, WT.L.OPT_ROGUE_POISON_SOUND, WT.L.OPT_DESC_ROGUE_POISON_SOUND, "Automations",
+            "RoguePoisonSound", audioInit)
+        panel:CreateCheckbox(builder, WT.L.OPT_ROGUE_POISON_CHAT, WT.L.OPT_DESC_ROGUE_POISON_CHAT, "Automations",
+            "RoguePoisonChat", nil, poisonInit)
+        panel:CreateCheckbox(builder, WT.L.OPT_ROGUE_POISON_INSTANCE_ONLY, WT.L.OPT_DESC_ROGUE_POISON_INSTANCE_ONLY,
+            "Automations", "RoguePoisonInstanceOnly", function(value)
+            if self.UpdateRoguePoisonStatus then self:UpdateRoguePoisonStatus() end
+        end, poisonInit)
+        panel:CreateButton(builder, "", WT.L.BTN_POISON_PREVIEW,
+            WT.L.BTN_DESC_POISON_PREVIEW, function()
+            if self.TogglePoisonReminderPreview then self:TogglePoisonReminderPreview() end
+        end, poisonInit)
+        panel:CreateButton(builder, "", WT.L.BTN_RESET_POISON_POS,
+            WT.L.DESC_RESET_POISON_POS, function()
+            if self.ResetRoguePoisonPosition then self:ResetRoguePoisonPosition() end
+        end, poisonInit)
 
-    panel:CreateTitle(builder, WT.L.GROUP_AUTO_MISC)
-    AddDescription(WT.L.OPT_DESC_GROUP_AUTO_MISC)
+    end
+    if ShowPart("General") then
+        panel:CreateTitle(builder, WT.L.GROUP_AUTO_MISC)
+        AddDescription(WT.L.OPT_DESC_GROUP_AUTO_MISC)
 
-    panel:CreateCheckbox(builder, WT.L.OPT_AUTO_KEYSTONE, WT.L.OPT_DESC_AUTO_KEYSTONE, "Automations", "AutoKeystone")
-    panel:CreateCheckbox(builder, WT.L.OPT_AUTO_COMBATRES, WT.L.OPT_DESC_AUTO_COMBATRES, "Automations", "CombatResAuto")
-    panel:CreateCheckbox(builder, WT.L.OPT_AUTO_REPWATCH, WT.L.OPT_DESC_AUTO_REPWATCH, "Automations", "AutoRepWatch")
+        panel:CreateCheckbox(builder, WT.L.OPT_AUTO_KEYSTONE, WT.L.OPT_DESC_AUTO_KEYSTONE, "Automations", "AutoKeystone")
+        panel:CreateCheckbox(builder, WT.L.OPT_AUTO_COMBATRES, WT.L.OPT_DESC_AUTO_COMBATRES, "Automations", "CombatResAuto")
+        panel:CreateCheckbox(builder, WT.L.OPT_AUTO_REPWATCH, WT.L.OPT_DESC_AUTO_REPWATCH, "Automations", "AutoRepWatch")
 
-    panel:CreateTitle(builder, WT.L.GROUP_LOOTING)
-    AddDescription(WT.L.OPT_DESC_GROUP_LOOTING)
+        panel:CreateTitle(builder, WT.L.GROUP_LOOTING)
+        AddDescription(WT.L.OPT_DESC_GROUP_LOOTING)
 
-    panel:CreateCheckbox(builder, WT.L.OPT_AUTO_FAST_LOOT, WT.L.OPT_DESC_AUTO_FAST_LOOT, "Automations", "FastLoot")
-    panel:CreateCheckbox(builder, WT.L.OPT_AUTO_LOOT_MOUSE, WT.L.OPT_DESC_AUTO_LOOT_MOUSE, "Automations",
-        "LootUnderMouse", function(value) self:UpdateLootUnderMouse(value) end)
-    panel:CreateCheckbox(builder, WT.L.OPT_AUTO_EASY_DELETE, WT.L.OPT_DESC_AUTO_EASY_DELETE, "Automations", "EasyDelete")
+        panel:CreateCheckbox(builder, WT.L.OPT_AUTO_FAST_LOOT, WT.L.OPT_DESC_AUTO_FAST_LOOT, "Automations", "FastLoot")
+        panel:CreateCheckbox(builder, WT.L.OPT_AUTO_LOOT_MOUSE, WT.L.OPT_DESC_AUTO_LOOT_MOUSE, "Automations",
+            "LootUnderMouse", function(value) self:UpdateLootUnderMouse(value) end)
+        panel:CreateCheckbox(builder, WT.L.OPT_AUTO_EASY_DELETE, WT.L.OPT_DESC_AUTO_EASY_DELETE, "Automations", "EasyDelete")
+    end
 end

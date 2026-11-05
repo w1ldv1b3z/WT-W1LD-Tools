@@ -219,7 +219,7 @@ function Module:BuildOptions(builder, panel)
     panel:CreateColorPicker(builder, WT.L.OPT_COLOR_LABEL, WT.L.OPT_DESC_COLOR_LABEL, "Coords", "TextColor", true, showInit, Refresh)
     panel:CreateColorPicker(builder, WT.L.OPT_COLOR_VALUE, WT.L.OPT_DESC_COLOR_VALUE, "Coords", "ValueColor", true, showInit, Refresh)
 
-    panel:CreateCheckbox(builder, WT.L.OPT_COORDS_MOVABLE, WT.L.OPT_DESC_COORDS_MOVABLE, "Coords", "Movable", Refresh)
+    panel:CreateCheckbox(builder, WT.L.OPT_COORDS_MOVABLE, WT.L.OPT_DESC_COORDS_MOVABLE, "Coords", "Movable", Refresh, showInit)
     panel:CreateStrataDropdown(builder, WT.L.OPT_STRATA, WT.L.OPT_DESC_STRATA, "Coords", "Strata", Refresh, showInit)
 
     if WT.Utils.SharedMedia then
@@ -227,6 +227,6 @@ function Module:BuildOptions(builder, panel)
     end
     panel:CreateSlider(builder, WT.L.OPT_FONT_SIZE, WT.L.OPT_DESC_FONT_SIZE, "Coords", "FontSize", 8, 24, 1, Refresh, showInit)
     panel:CreateOutlineDropdown(builder, WT.L.OPT_FONT_OUTLINE, WT.L.OPT_DESC_FONT_OUTLINE, "Coords", "FontOutline", Refresh, showInit)
-    local sepInit = panel:CreateEditBox(builder, WT.L.OPT_SEPARATOR, WT.L.OPT_DESC_SEPARATOR, "Coords", "Separator", nil, Refresh)
+    local sepInit = panel:CreateEditBox(builder, WT.L.OPT_SEPARATOR, WT.L.OPT_DESC_SEPARATOR, "Coords", "Separator", showInit, Refresh)
     panel:CreateColorPicker(builder, WT.L.OPT_COLOR_SEP, WT.L.OPT_DESC_COLOR_SEP, "Coords", "SeparatorColor", true, sepInit, Refresh)
 end

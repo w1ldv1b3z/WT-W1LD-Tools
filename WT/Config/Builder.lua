@@ -7,6 +7,17 @@ local Builder = WT.Config.Builder
 
 Builder.Registry = { Checkboxes = {}, Sliders = {}, Dropdowns = {}, EditBoxes = {}, ColorPickers = {} }
 
+-- Every nesting level (option -> sub option -> sub sub option) is indented by this many pixels
+local INDENT_STEP = 30
+
+--- Nesting depth of a widget created below parentWidget (0 = top level).
+---@param parentWidget table|nil
+---@return number
+function Builder:GetDepth(parentWidget)
+    if not parentWidget then return 0 end
+    return (parentWidget.wtDepth or 0) + 1
+end
+
 -- ==============================================================
 -- CUSTOM CANVAS BUILDER (Masque-like hybrid approach)
 -- ==============================================================
@@ -718,8 +729,10 @@ function Builder:CreateCheckbox(builder, labelText, tooltipText, dbCategory, dbK
     local searchEntry = self:IndexOption(labelText, dbCategory, builder.category, builder)
     local cb = CreateFrame("CheckButton", nil, builder.content, "ChatConfigCheckButtonTemplate")
     -- 12/42 instead of 16/46 to compensate for 4px invisible texture padding on the left
-    local indent = parentWidget and 42 or 12
+    local depth = self:GetDepth(parentWidget)
+    local indent = 12 + depth * INDENT_STEP
     cb.wtIndent = indent
+    cb.wtDepth = depth
     cb:SetPoint("TOPLEFT", builder.content, "TOPLEFT", indent, builder.cursorY)
     if searchEntry then searchEntry.widget = cb; searchEntry.yPos = builder.cursorY; searchEntry.textObj = cb.Text end
     self:StyleCheckbox(cb)
@@ -813,7 +826,7 @@ function Builder:CreateColorPicker(builder, labelText, tooltipText, dbCategory, 
         btn:SetPoint("LEFT", parentWidget, "LEFT", offsetX, 0)
         parentWidget.swatchCount = parentWidget.swatchCount + 1
     else
-        local indent = isIndented and 46 or 16
+        local indent = 16 + (isIndented and math.max(1, self:GetDepth(parentWidget)) or 0) * INDENT_STEP
         txt = builder.content:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         txt:SetPoint("LEFT", builder.content, "TOPLEFT", indent, builder.cursorY - 12)
         txt:SetText(labelText)
@@ -903,7 +916,8 @@ function Builder:CreateSlider(builder, labelText, tooltipText, dbCategory, dbKey
     local searchEntry = self:IndexOption(labelText, dbCategory, builder.category, builder)
     local sliderName = "WT_Slider_" .. dbCategory .. "_" .. dbKey
     local slider = CreateFrame("Slider", sliderName, builder.content, "OptionsSliderTemplate")
-    local indent = parentWidget and 46 or 16
+    local depth = self:GetDepth(parentWidget)
+    local indent = 16 + depth * INDENT_STEP
     
     local lbl = builder.content:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     lbl:SetPoint("LEFT", builder.content, "TOPLEFT", indent, builder.cursorY - 12)
@@ -960,6 +974,7 @@ function Builder:CreateSlider(builder, labelText, tooltipText, dbCategory, dbKey
     self.Registry.Sliders[dbCategory] = self.Registry.Sliders[dbCategory] or {}
     self.Registry.Sliders[dbCategory][dbKey] = slider
     if parentWidget then self:RegisterParent(parentWidget, slider, lbl, valText, btnReset, _G[sliderName.."Low"], _G[sliderName.."High"]) end
+    slider.wtDepth = depth
     return slider
 end
 
@@ -1208,7 +1223,8 @@ end
 function Builder:CreateDropdown(builder, labelText, tooltipText, dbCategory, dbKey, options, callback, parentWidget)
     local searchEntry = self:IndexOption(labelText, dbCategory, builder.category, builder)
     local ddLabel = builder.content:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    local indent = parentWidget and 46 or 16
+    local depth = self:GetDepth(parentWidget)
+    local indent = 16 + depth * INDENT_STEP
     ddLabel:SetPoint("LEFT", builder.content, "TOPLEFT", indent, builder.cursorY - 12)
     ddLabel:SetText(labelText)
     
@@ -1258,6 +1274,7 @@ function Builder:CreateDropdown(builder, labelText, tooltipText, dbCategory, dbK
     self.Registry.Dropdowns[dbCategory] = self.Registry.Dropdowns[dbCategory] or {}
     self.Registry.Dropdowns[dbCategory][dbKey] = dd
     if parentWidget then self:RegisterParent(parentWidget, dd, ddLabel) end
+    dd.wtDepth = depth
     return dd
 end
 
@@ -1388,7 +1405,8 @@ end
 function Builder:CreateEditBox(builder, labelText, tooltipText, dbCategory, dbKey, parentWidget, callback)
     local searchEntry = self:IndexOption(labelText, dbCategory, builder.category, builder)
     local ebLabel = builder.content:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    local indent = parentWidget and 46 or 16
+    local depth = self:GetDepth(parentWidget)
+    local indent = 16 + depth * INDENT_STEP
     ebLabel:SetPoint("LEFT", builder.content, "TOPLEFT", indent, builder.cursorY - 12)
     ebLabel:SetText(labelText)
     
@@ -1430,6 +1448,7 @@ function Builder:CreateEditBox(builder, labelText, tooltipText, dbCategory, dbKe
     self.Registry.EditBoxes[dbCategory] = self.Registry.EditBoxes[dbCategory] or {}
     self.Registry.EditBoxes[dbCategory][dbKey] = eb
     if parentWidget then self:RegisterParent(parentWidget, eb, ebLabel, btnReset) end
+    eb.wtDepth = depth
     return eb
 end
 
@@ -1522,7 +1541,8 @@ function Builder:CreateButton(builder, labelText, buttonText, tooltipText, callb
     btn:SetNormalFontObject("GameFontNormalSmall")
     btn:SetHighlightFontObject("GameFontHighlightSmall")
     btn:SetDisabledFontObject("GameFontDisableSmall")
-    local indent = parentWidget and 46 or 16
+    local depth = self:GetDepth(parentWidget)
+    local indent = 16 + depth * INDENT_STEP
     
     local lbl
     if labelText and labelText ~= "" then
@@ -1546,13 +1566,15 @@ function Builder:CreateButton(builder, labelText, buttonText, tooltipText, callb
     self:AddTooltip(btn, buttonText, tooltipText)
     builder:AddSpace(34)
     if parentWidget then self:RegisterParent(parentWidget, btn, lbl) end
+    btn.wtDepth = depth
     return btn
 end
 
 function Builder:CreateKeybindButton(builder, labelText, tooltipText, bindingID, parentWidget)
     local searchEntry = self:IndexOption(labelText, builder.moduleName or "Category", builder.category, builder)
     local lbl = builder.content:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    local indent = parentWidget and 46 or 16
+    local depth = self:GetDepth(parentWidget)
+    local indent = 16 + depth * INDENT_STEP
     lbl:SetPoint("LEFT", builder.content, "TOPLEFT", indent, builder.cursorY - 12)
     lbl:SetText(labelText)
     
@@ -1655,5 +1677,6 @@ function Builder:CreateKeybindButton(builder, labelText, tooltipText, bindingID,
     
     builder:AddSpace(34)
     if parentWidget then self:RegisterParent(parentWidget, btn, lbl) end
+    btn.wtDepth = depth
     return btn
 end

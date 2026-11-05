@@ -29,6 +29,7 @@ WT.Compat.IsRetail = isRetail
 WT.Compat.IsMidnight = isMidnight
 WT.Compat.ClientVersion = clientVersion or "0.0.0"
 WT.Compat.BuildNumber = bNum
+WT.Compat.BuildDate = buildDate or ""
 WT.Compat.TocVersion = toc
 WT.Compat.Flavor = isForever and "Forever" or (isRetail and "Retail" or "Forever")
 

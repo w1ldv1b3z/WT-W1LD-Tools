@@ -442,7 +442,9 @@ WT.Core.Events:Register("PLAYER_LOGIN", function()
 end)
 
 -- Function to build the module's option panel
-function Module:BuildOptions(builder, panel)
+function Module:BuildOptions(builder, panel, part)
+    -- "part" builds only one section when the module is spread over several options pages
+    local function ShowPart(name) return part == nil or part == name end
     local function PromptReload()
         if WT.Config and WT.Config.OptionsPanel and WT.Config.OptionsPanel.ShowReloadPrompt then
             WT.Config.OptionsPanel:ShowReloadPrompt()
@@ -459,114 +461,118 @@ function Module:BuildOptions(builder, panel)
         builder:AddSpace(desc:GetStringHeight() + 25)
     end
 
-    panel:CreateTitle(builder, WT.L.GROUP_CHAT_HISTORY)
-    local descText = (WT.L.OPT_DESC_GROUP_CHAT_HISTORY)
-    descText = descText ..
-    "\n\n|cFFFF5555" ..
-    (WT.L.OPT_DESC_CHAT_HISTORY_BLIZZ_RESTRICTION) ..
-    "|r"
-    AddDescription(descText)
+    if ShowPart("Functions") then
+        panel:CreateTitle(builder, WT.L.GROUP_CHAT_HISTORY)
+        local descText = (WT.L.OPT_DESC_GROUP_CHAT_HISTORY)
+        descText = descText ..
+        "\n\n|cFFFF5555" ..
+        (WT.L.OPT_DESC_CHAT_HISTORY_BLIZZ_RESTRICTION) ..
+        "|r"
+        AddDescription(descText)
 
-    local memHint = builder.content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    memHint:SetPoint("TOPLEFT", builder.content, "TOPLEFT", 16, builder.cursorY)
-    memHint:SetWidth(550)
-    memHint:SetJustifyH("LEFT")
-    memHint:SetText(WT.L.OPT_DESC_CHAT_HISTORY_RAM_HINT)
-    memHint:SetTextColor(WT.Colors.SUBTEXT_R, WT.Colors.SUBTEXT_G, WT.Colors.SUBTEXT_B)
-    builder:AddSpace(memHint:GetStringHeight() + 25)
+        local memHint = builder.content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        memHint:SetPoint("TOPLEFT", builder.content, "TOPLEFT", 16, builder.cursorY)
+        memHint:SetWidth(550)
+        memHint:SetJustifyH("LEFT")
+        memHint:SetText(WT.L.OPT_DESC_CHAT_HISTORY_RAM_HINT)
+        memHint:SetTextColor(WT.Colors.SUBTEXT_R, WT.Colors.SUBTEXT_G, WT.Colors.SUBTEXT_B)
+        builder:AddSpace(memHint:GetStringHeight() + 25)
 
-    local histInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HISTORY, WT.L.OPT_DESC_CHAT_HISTORY, "Chat",
-        "ChatHistory", PromptReload)
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIST_INCLUDE_GEN, WT.L.OPT_DESC_CHAT_HIST_INCLUDE_GEN, "Chat",
-        "HistoryIncludeGeneral", nil, histInit)
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIST_GEN, WT.L.OPT_DESC_CHAT_HIST_GEN, "Chat", "HistoryChanGeneral", nil,
-        histInit)
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIST_TRADE, WT.L.OPT_DESC_CHAT_HIST_TRADE, "Chat", "HistoryChanTrade",
-        nil, histInit)
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIST_LOCAL, WT.L.OPT_DESC_CHAT_HIST_LOCAL, "Chat", "HistoryChanLocalDef",
-        nil, histInit)
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIST_SERV, WT.L.OPT_DESC_CHAT_HIST_SERV, "Chat", "HistoryChanServices",
-        nil, histInit)
+        local histInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HISTORY, WT.L.OPT_DESC_CHAT_HISTORY, "Chat",
+            "ChatHistory", PromptReload)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIST_INCLUDE_GEN, WT.L.OPT_DESC_CHAT_HIST_INCLUDE_GEN, "Chat",
+            "HistoryIncludeGeneral", nil, histInit)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIST_GEN, WT.L.OPT_DESC_CHAT_HIST_GEN, "Chat", "HistoryChanGeneral", nil,
+            histInit)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIST_TRADE, WT.L.OPT_DESC_CHAT_HIST_TRADE, "Chat", "HistoryChanTrade",
+            nil, histInit)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIST_LOCAL, WT.L.OPT_DESC_CHAT_HIST_LOCAL, "Chat", "HistoryChanLocalDef",
+            nil, histInit)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIST_SERV, WT.L.OPT_DESC_CHAT_HIST_SERV, "Chat", "HistoryChanServices",
+            nil, histInit)
 
-    panel:CreateSlider(builder, WT.L.OPT_CHAT_HIST_LINES, WT.L.OPT_DESC_CHAT_HIST_LINES, "Chat", "HistoryMaxLines", 10,
-        500, 10, nil, histInit)
+        panel:CreateSlider(builder, WT.L.OPT_CHAT_HIST_LINES, WT.L.OPT_DESC_CHAT_HIST_LINES, "Chat", "HistoryMaxLines", 10,
+            500, 10, nil, histInit)
 
-    builder:AddSpace(20)
-    panel:CreateTitle(builder, WT.L.GROUP_CHAT_VISUALS)
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_BUBBLES_PARTY,
-        WT.L.OPT_DESC_CHAT_BUBBLES_PARTY, "Chat", "ChatBubblesParty", function(value) self:UpdateChatBubbles(value) end)
+        builder:AddSpace(20)
+        panel:CreateTitle(builder, WT.L.GROUP_CHAT_VISUALS)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_BUBBLES_PARTY,
+            WT.L.OPT_DESC_CHAT_BUBBLES_PARTY, "Chat", "ChatBubblesParty", function(value) self:UpdateChatBubbles(value) end)
 
-    panel:CreateButton(builder, " ", WT.L.BTN_CLEAR_CHAT_HIST, "", function()
-        if WT.DB.Internal.ChatLog then wipe(WT.DB.Internal.ChatLog) end
-        for _, frameName in ipairs(CHAT_FRAMES or {}) do
-            local cf = _G[frameName]
-            if cf then
-                if type(cf.Clear) == "function" then cf:Clear() end
-                if cf.historyBuffer and type(cf.historyBuffer.Clear) == "function" then cf.historyBuffer:Clear() end
-                cf:AddMessage(" "); cf:Clear()
+        panel:CreateButton(builder, " ", WT.L.BTN_CLEAR_CHAT_HIST, "", function()
+            if WT.DB.Internal.ChatLog then wipe(WT.DB.Internal.ChatLog) end
+            for _, frameName in ipairs(CHAT_FRAMES or {}) do
+                local cf = _G[frameName]
+                if cf then
+                    if type(cf.Clear) == "function" then cf:Clear() end
+                    if cf.historyBuffer and type(cf.historyBuffer.Clear) == "function" then cf.historyBuffer:Clear() end
+                    cf:AddMessage(" "); cf:Clear()
+                end
             end
-        end
-        if WT.Utils and WT.Utils.Logger then WT.Utils.Logger:Print(WT.L.MSG_CHAT_HIST_CLEARED) end
-    end)
-
-    local inpInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_INPUT_HISTORY, WT.L.OPT_DESC_CHAT_INPUT_HISTORY, "Chat",
-        "InputHistory", PromptReload)
-    panel:CreateSlider(builder, WT.L.OPT_CHAT_INPUT_HIST_LINES, WT.L.OPT_DESC_CHAT_INPUT_HIST_LINES, "Chat",
-        "InputHistoryMaxLines", 5, 100, 5, nil, inpInit)
-
-    panel:CreateButton(builder, " ", WT.L.BTN_CLEAR_INPUT_HIST, "", function()
-        if WT.DB.Internal.InputLog then wipe(WT.DB.Internal.InputLog) end
-        for i = 1, 50 do
-            local eb = _G["ChatFrame" .. i .. "EditBox"]
-            if eb and type(eb.ClearHistory) == "function" then eb:ClearHistory() end
-        end
-        if WT.Utils and WT.Utils.Logger then WT.Utils.Logger:Print(WT.L.MSG_INPUT_CLEARED) end
-    end)
-
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_RESTORE_TABS, WT.L.OPT_DESC_CHAT_RESTORE_TABS, "Chat", "RestoreTempTabs",
-        PromptReload)
-
-
-
-
-
-    panel:CreateTitle(builder, WT.L.GROUP_CHAT_GUILD)
-    AddDescription(WT.L.OPT_DESC_GROUP_CHAT_GUILD)
-
-    local slInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_SMART_LOGINS, WT.L.OPT_DESC_CHAT_SMART_LOGINS, "Chat",
-        "SmartGuildLogins",
-        function(value)
-            self:UpdateSmartLogins(value); if WT.Modules.Audio then WT.Modules.Audio:UpdateMutes() end
+            if WT.Utils and WT.Utils.Logger then WT.Utils.Logger:Print(WT.L.MSG_CHAT_HIST_CLEARED) end
         end)
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_SHOW_BNET_LOGINS,
-        WT.L.OPT_DESC_CHAT_SHOW_BNET_LOGINS, "Chat", "SmartLoginShowBNetFriends", nil, slInit)
-    if WT.Utils and WT.Utils.SharedMedia then
-        panel:CreateSoundDropdown(builder, WT.L.OPT_CHAT_LOGIN_SOUND, WT.L.OPT_DESC_CHAT_LOGIN_SOUND,
-            "Chat", "SmartLoginSound", slInit, function() if WT.Modules.Audio then WT.Modules.Audio:UpdateMutes() end end)
+
+        local inpInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_INPUT_HISTORY, WT.L.OPT_DESC_CHAT_INPUT_HISTORY, "Chat",
+            "InputHistory", PromptReload)
+        panel:CreateSlider(builder, WT.L.OPT_CHAT_INPUT_HIST_LINES, WT.L.OPT_DESC_CHAT_INPUT_HIST_LINES, "Chat",
+            "InputHistoryMaxLines", 5, 100, 5, nil, inpInit)
+
+        panel:CreateButton(builder, " ", WT.L.BTN_CLEAR_INPUT_HIST, "", function()
+            if WT.DB.Internal.InputLog then wipe(WT.DB.Internal.InputLog) end
+            for i = 1, 50 do
+                local eb = _G["ChatFrame" .. i .. "EditBox"]
+                if eb and type(eb.ClearHistory) == "function" then eb:ClearHistory() end
+            end
+            if WT.Utils and WT.Utils.Logger then WT.Utils.Logger:Print(WT.L.MSG_INPUT_CLEARED) end
+        end)
+
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_RESTORE_TABS, WT.L.OPT_DESC_CHAT_RESTORE_TABS, "Chat", "RestoreTempTabs",
+            PromptReload)
+
+
+
+
+
     end
-    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_LOGIN, WT.L.OPT_DESC_COLOR_LOGIN, "Chat", "ColGuildLogin", false,
-        slInit)
-    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_LOGOUT, WT.L.OPT_DESC_COLOR_LOGOUT, "Chat", "ColGuildLogout", false,
-        slInit)
+    if ShowPart("Guild") then
+        panel:CreateTitle(builder, WT.L.GROUP_CHAT_GUILD)
+        AddDescription(WT.L.OPT_DESC_GROUP_CHAT_GUILD)
 
-    local noteInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_GUILD_NOTES, WT.L.OPT_DESC_CHAT_GUILD_NOTES, "Chat",
-        "ShowGuildNotes")
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_OWN_NOTE, WT.L.OPT_DESC_CHAT_OWN_NOTE, "Chat", "ShowOwnGuildNote", nil,
-        noteInit)
-    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_NOTE, WT.L.OPT_DESC_COLOR_VALUE, "Chat", "NoteColor", false, noteInit)
+        local slInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_SMART_LOGINS, WT.L.OPT_DESC_CHAT_SMART_LOGINS, "Chat",
+            "SmartGuildLogins",
+            function(value)
+                self:UpdateSmartLogins(value); if WT.Modules.Audio then WT.Modules.Audio:UpdateMutes() end
+            end)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_SHOW_BNET_LOGINS,
+            WT.L.OPT_DESC_CHAT_SHOW_BNET_LOGINS, "Chat", "SmartLoginShowBNetFriends", nil, slInit)
+        if WT.Utils and WT.Utils.SharedMedia then
+            panel:CreateSoundDropdown(builder, WT.L.OPT_CHAT_LOGIN_SOUND, WT.L.OPT_DESC_CHAT_LOGIN_SOUND,
+                "Chat", "SmartLoginSound", slInit, function() if WT.Modules.Audio then WT.Modules.Audio:UpdateMutes() end end)
+        end
+        panel:CreateColorPicker(builder, WT.L.OPT_COLOR_LOGIN, WT.L.OPT_DESC_COLOR_LOGIN, "Chat", "ColGuildLogin", false,
+            slInit)
+        panel:CreateColorPicker(builder, WT.L.OPT_COLOR_LOGOUT, WT.L.OPT_DESC_COLOR_LOGOUT, "Chat", "ColGuildLogout", false,
+            slInit)
 
-    local gzInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_AUTOGZ, WT.L.OPT_DESC_CHAT_AUTOGZ, "Chat", "AutoGZ")
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_AUTOGZ_TOOLTIP,
-        WT.L.OPT_DESC_CHAT_AUTOGZ_TOOLTIP, "Chat", "AutoGZTooltip", nil, gzInit)
+        local noteInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_GUILD_NOTES, WT.L.OPT_DESC_CHAT_GUILD_NOTES, "Chat",
+            "ShowGuildNotes")
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_OWN_NOTE, WT.L.OPT_DESC_CHAT_OWN_NOTE, "Chat", "ShowOwnGuildNote", nil,
+            noteInit)
+        panel:CreateColorPicker(builder, WT.L.OPT_COLOR_NOTE, WT.L.OPT_DESC_COLOR_VALUE, "Chat", "NoteColor", false, noteInit)
 
-    panel:CreateEditBox(builder, WT.L.OPT_CHAT_AUTOGZ_TEXT, WT.L.OPT_DESC_CHAT_AUTOGZ_TEXT, "Chat", "AutoGZText", gzInit)
+        local gzInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_AUTOGZ, WT.L.OPT_DESC_CHAT_AUTOGZ, "Chat", "AutoGZ")
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_AUTOGZ_TOOLTIP,
+            WT.L.OPT_DESC_CHAT_AUTOGZ_TOOLTIP, "Chat", "AutoGZTooltip", nil, gzInit)
 
-    local achInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_GUILD_ACHIEV, WT.L.OPT_DESC_CHAT_GUILD_ACHIEV, "Chat",
-        "GuildAchievEnabled")
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_GUILD_ACHIEV_SELF, WT.L.OPT_DESC_CHAT_GUILD_ACHIEV_SELF, "Chat",
-        "GuildAchievSelf", nil, achInit)
-    if WT.Utils and WT.Utils.SharedMedia then
-        panel:CreateSoundDropdown(builder, WT.L.OPT_CHAN_SOUND, WT.L.OPT_DESC_CHAN_SOUND, "Chat", "GuildAchievSound",
-            achInit)
+        panel:CreateEditBox(builder, WT.L.OPT_CHAT_AUTOGZ_TEXT, WT.L.OPT_DESC_CHAT_AUTOGZ_TEXT, "Chat", "AutoGZText", gzInit)
+
+        local achInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_GUILD_ACHIEV, WT.L.OPT_DESC_CHAT_GUILD_ACHIEV, "Chat",
+            "GuildAchievEnabled")
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_GUILD_ACHIEV_SELF, WT.L.OPT_DESC_CHAT_GUILD_ACHIEV_SELF, "Chat",
+            "GuildAchievSelf", nil, achInit)
+        if WT.Utils and WT.Utils.SharedMedia then
+            panel:CreateSoundDropdown(builder, WT.L.OPT_CHAN_SOUND, WT.L.OPT_DESC_CHAN_SOUND, "Chat", "GuildAchievSound",
+                achInit)
+        end
     end
 end

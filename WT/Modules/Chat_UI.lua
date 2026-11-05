@@ -1348,7 +1348,9 @@ function Module:GetTimestampString()
     return tsString .. " "
 end
 
-function Module:BuildOptions(builder, panel)
+function Module:BuildOptions(builder, panel, part)
+    -- "part" builds only one section when the module is spread over several options pages
+    local function ShowPart(name) return part == nil or part == name end
     local function AddDescription(text)
         if not text then return end
         local desc = builder.content:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
@@ -1359,98 +1361,102 @@ function Module:BuildOptions(builder, panel)
         builder:AddSpace(desc:GetStringHeight() + 25)
     end
     
-    panel:CreateTitle(builder, WT.L.GROUP_CHAT_APPEARANCE)
-    AddDescription(WT.L.OPT_DESC_GROUP_CHAT_APPEARANCE)
+    if ShowPart("Display") then
+        panel:CreateTitle(builder, WT.L.GROUP_CHAT_APPEARANCE)
+        AddDescription(WT.L.OPT_DESC_GROUP_CHAT_APPEARANCE)
     
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_CLASS_COLORS, WT.L.OPT_DESC_CHAT_CLASS_COLORS, "Chat", "ClassColors", function(value) if WT.Modules.Chat and type(WT.Modules.Chat.UpdateClassColors) == "function" then WT.Modules.Chat:UpdateClassColors(value) end end)
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_COPY, WT.L.OPT_DESC_CHAT_COPY, "Chat", "ChatCopy")
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIDE_SERVER, WT.L.OPT_DESC_CHAT_HIDE_SERVER, "Chat", "HideServerNames")
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_SHOW_LEVELS, WT.L.OPT_DESC_CHAT_SHOW_LEVELS, "Chat", "ShowPlayerLevels", function() if WT.Modules.Chat and type(WT.Modules.Chat.UpdatePlayerLevelCache) == "function" then WT.Modules.Chat:UpdatePlayerLevelCache() end end)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_CLASS_COLORS, WT.L.OPT_DESC_CHAT_CLASS_COLORS, "Chat", "ClassColors", function(value) if WT.Modules.Chat and type(WT.Modules.Chat.UpdateClassColors) == "function" then WT.Modules.Chat:UpdateClassColors(value) end end)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_COPY, WT.L.OPT_DESC_CHAT_COPY, "Chat", "ChatCopy")
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIDE_SERVER, WT.L.OPT_DESC_CHAT_HIDE_SERVER, "Chat", "HideServerNames")
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_SHOW_LEVELS, WT.L.OPT_DESC_CHAT_SHOW_LEVELS, "Chat", "ShowPlayerLevels", function() if WT.Modules.Chat and type(WT.Modules.Chat.UpdatePlayerLevelCache) == "function" then WT.Modules.Chat:UpdatePlayerLevelCache() end end)
     
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIDE_BUTTONS, WT.L.OPT_DESC_CHAT_HIDE_BUTTONS, "Chat", "HideButtons", function() self:UpdateChatButtonsVisibility() end)
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIDE_QUICKJOIN, WT.L.OPT_DESC_CHAT_HIDE_QUICKJOIN, "Chat", "HideQuickJoin", function(value) self:UpdateQuickJoin(value) end)
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_DISABLE_FADING, WT.L.OPT_DESC_CHAT_DISABLE_FADING, "Chat", "DisableChatFading", function(value) self:UpdateChatFading(not value) end)
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_SHORT_CHANNELS, WT.L.OPT_DESC_CHAT_SHORT_CHANNELS, "Chat", "ShortChannelNames")
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_EDITBOX_TOP, WT.L.OPT_DESC_CHAT_EDITBOX_TOP, "Chat", "EditBoxTop", function() self:UpdateEditBoxPosition() end)
-    local ceInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_CLEAN_EDITBOX, WT.L.OPT_DESC_CHAT_CLEAN_EDITBOX, "Chat", "CleanEditBox", function() self:UpdateCleanEditBox() end)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIDE_BUTTONS, WT.L.OPT_DESC_CHAT_HIDE_BUTTONS, "Chat", "HideButtons", function() self:UpdateChatButtonsVisibility() end)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIDE_QUICKJOIN, WT.L.OPT_DESC_CHAT_HIDE_QUICKJOIN, "Chat", "HideQuickJoin", function(value) self:UpdateQuickJoin(value) end)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_DISABLE_FADING, WT.L.OPT_DESC_CHAT_DISABLE_FADING, "Chat", "DisableChatFading", function(value) self:UpdateChatFading(not value) end)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_SHORT_CHANNELS, WT.L.OPT_DESC_CHAT_SHORT_CHANNELS, "Chat", "ShortChannelNames")
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_EDITBOX_TOP, WT.L.OPT_DESC_CHAT_EDITBOX_TOP, "Chat", "EditBoxTop", function() self:UpdateEditBoxPosition() end)
+        local ceInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_CLEAN_EDITBOX, WT.L.OPT_DESC_CHAT_CLEAN_EDITBOX, "Chat", "CleanEditBox", function() self:UpdateCleanEditBox() end)
     
-    local ebStyleOptions = {
-        { value = "CLASSIC", label = WT.L.OPT_CHAT_EB_STYLE_CLASSIC },
-        { value = "MODERN", label = WT.L.OPT_CHAT_EB_STYLE_MODERN }
-    }
-    panel:CreateDropdown(builder, WT.L.OPT_CHAT_EB_STYLE, WT.L.OPT_DESC_CHAT_EB_STYLE, "Chat", "EditBoxStyle", ebStyleOptions, function() self:UpdateCleanEditBox() end, ceInit)
+        local ebStyleOptions = {
+            { value = "CLASSIC", label = WT.L.OPT_CHAT_EB_STYLE_CLASSIC },
+            { value = "MODERN", label = WT.L.OPT_CHAT_EB_STYLE_MODERN }
+        }
+        panel:CreateDropdown(builder, WT.L.OPT_CHAT_EB_STYLE, WT.L.OPT_DESC_CHAT_EB_STYLE, "Chat", "EditBoxStyle", ebStyleOptions, function() self:UpdateCleanEditBox() end, ceInit)
     
-    local ctInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_CLEAN_TABS, WT.L.OPT_DESC_CHAT_CLEAN_TABS, "Chat", "CleanTabs", function() self:UpdateCleanTabs() end)
-    panel:CreateColorPicker(builder, WT.L.OPT_CHAT_TAB_ACTIVE_BG, WT.L.OPT_DESC_COLOR_BG, "Chat", "TabActiveBgColor", true, ctInit, function() self:UpdateCleanTabs() end)
-    panel:CreateColorPicker(builder, WT.L.OPT_CHAT_TAB_ACTIVE_BORDER, WT.L.OPT_DESC_COLOR_BORDER, "Chat", "TabActiveBorderColor", true, ctInit, function() self:UpdateCleanTabs() end)
-    panel:CreateColorPicker(builder, WT.L.OPT_CHAT_TAB_INACTIVE_BG, WT.L.OPT_DESC_COLOR_BG, "Chat", "TabInactiveBgColor", true, ctInit, function() self:UpdateCleanTabs() end)
-    panel:CreateColorPicker(builder, WT.L.OPT_CHAT_TAB_INACTIVE_BORDER, WT.L.OPT_DESC_COLOR_BORDER, "Chat", "TabInactiveBorderColor", true, ctInit, function() self:UpdateCleanTabs() end)
+        local ctInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_CLEAN_TABS, WT.L.OPT_DESC_CHAT_CLEAN_TABS, "Chat", "CleanTabs", function() self:UpdateCleanTabs() end)
+        panel:CreateColorPicker(builder, WT.L.OPT_CHAT_TAB_ACTIVE_BG, WT.L.OPT_DESC_COLOR_BG, "Chat", "TabActiveBgColor", true, ctInit, function() self:UpdateCleanTabs() end)
+        panel:CreateColorPicker(builder, WT.L.OPT_CHAT_TAB_ACTIVE_BORDER, WT.L.OPT_DESC_COLOR_BORDER, "Chat", "TabActiveBorderColor", true, ctInit, function() self:UpdateCleanTabs() end)
+        panel:CreateColorPicker(builder, WT.L.OPT_CHAT_TAB_INACTIVE_BG, WT.L.OPT_DESC_COLOR_BG, "Chat", "TabInactiveBgColor", true, ctInit, function() self:UpdateCleanTabs() end)
+        panel:CreateColorPicker(builder, WT.L.OPT_CHAT_TAB_INACTIVE_BORDER, WT.L.OPT_DESC_COLOR_BORDER, "Chat", "TabInactiveBorderColor", true, ctInit, function() self:UpdateCleanTabs() end)
     
-    local tFontInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_TAB_CUSTOM_FONT, WT.L.OPT_DESC_CHAT_TAB_CUSTOM_FONT, "Chat", "CustomTabFont", function() self:UpdateCleanTabs() end)
-    if WT.Utils and WT.Utils.SharedMedia then
-        panel:CreateDropdown(builder, WT.L.OPT_FONT, WT.L.OPT_DESC_FONT, "Chat", "TabFont", WT.Utils.SharedMedia:GetOptions("font"), function() self:UpdateCleanTabs() end, tFontInit)
-    end
-    panel:CreateSlider(builder, WT.L.OPT_FONT_SIZE, WT.L.OPT_DESC_FONT_SIZE, "Chat", "TabFontSize", 8, 24, 1, function() self:UpdateCleanTabs() end, tFontInit)
-    panel:CreateOutlineDropdown(builder, WT.L.OPT_FONT_OUTLINE, WT.L.OPT_DESC_FONT_OUTLINE, "Chat", "TabFontOutline", function() self:UpdateCleanTabs() end, tFontInit)
-    panel:CreateColorPicker(builder, WT.L.OPT_CHAT_TAB_ACTIVE_TEXT, WT.L.OPT_DESC_COLOR_VALUE, "Chat", "TabActiveTextColor", true, tFontInit, function() self:UpdateCleanTabs() end)
-    panel:CreateColorPicker(builder, WT.L.OPT_CHAT_TAB_INACTIVE_TEXT, WT.L.OPT_DESC_COLOR_VALUE, "Chat", "TabInactiveTextColor", true, tFontInit, function() self:UpdateCleanTabs() end)
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIDE_TABS, WT.L.OPT_DESC_CHAT_HIDE_TABS, "Chat", "HideTabs", function() self:UpdateTabVisibility() end)
+        local tFontInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_TAB_CUSTOM_FONT, WT.L.OPT_DESC_CHAT_TAB_CUSTOM_FONT, "Chat", "CustomTabFont", function() self:UpdateCleanTabs() end)
+        if WT.Utils and WT.Utils.SharedMedia then
+            panel:CreateDropdown(builder, WT.L.OPT_FONT, WT.L.OPT_DESC_FONT, "Chat", "TabFont", WT.Utils.SharedMedia:GetOptions("font"), function() self:UpdateCleanTabs() end, tFontInit)
+        end
+        panel:CreateSlider(builder, WT.L.OPT_FONT_SIZE, WT.L.OPT_DESC_FONT_SIZE, "Chat", "TabFontSize", 8, 24, 1, function() self:UpdateCleanTabs() end, tFontInit)
+        panel:CreateOutlineDropdown(builder, WT.L.OPT_FONT_OUTLINE, WT.L.OPT_DESC_FONT_OUTLINE, "Chat", "TabFontOutline", function() self:UpdateCleanTabs() end, tFontInit)
+        panel:CreateColorPicker(builder, WT.L.OPT_CHAT_TAB_ACTIVE_TEXT, WT.L.OPT_DESC_COLOR_VALUE, "Chat", "TabActiveTextColor", true, tFontInit, function() self:UpdateCleanTabs() end)
+        panel:CreateColorPicker(builder, WT.L.OPT_CHAT_TAB_INACTIVE_TEXT, WT.L.OPT_DESC_COLOR_VALUE, "Chat", "TabInactiveTextColor", true, tFontInit, function() self:UpdateCleanTabs() end)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_HIDE_TABS, WT.L.OPT_DESC_CHAT_HIDE_TABS, "Chat", "HideTabs", function() self:UpdateTabVisibility() end)
     
-    local ebFontInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_EB_CUSTOM_FONT, WT.L.OPT_DESC_CHAT_EB_CUSTOM_FONT, "Chat", "CustomEditBoxFont", function() self:UpdateCleanEditBox() end)
-    if WT.Utils and WT.Utils.SharedMedia then
-        panel:CreateDropdown(builder, WT.L.OPT_FONT, WT.L.OPT_DESC_FONT, "Chat", "EditBoxFont", WT.Utils.SharedMedia:GetOptions("font"), function() self:UpdateCleanEditBox() end, ebFontInit)
-    end
-    panel:CreateSlider(builder, WT.L.OPT_FONT_SIZE, WT.L.OPT_DESC_FONT_SIZE, "Chat", "EditBoxFontSize", 8, 24, 1, function() self:UpdateCleanEditBox() end, ebFontInit)
+        local ebFontInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_EB_CUSTOM_FONT, WT.L.OPT_DESC_CHAT_EB_CUSTOM_FONT, "Chat", "CustomEditBoxFont", function() self:UpdateCleanEditBox() end)
+        if WT.Utils and WT.Utils.SharedMedia then
+            panel:CreateDropdown(builder, WT.L.OPT_FONT, WT.L.OPT_DESC_FONT, "Chat", "EditBoxFont", WT.Utils.SharedMedia:GetOptions("font"), function() self:UpdateCleanEditBox() end, ebFontInit)
+        end
+        panel:CreateSlider(builder, WT.L.OPT_FONT_SIZE, WT.L.OPT_DESC_FONT_SIZE, "Chat", "EditBoxFontSize", 8, 24, 1, function() self:UpdateCleanEditBox() end, ebFontInit)
 
-    local chatFontInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_CUSTOM_FONT, WT.L.OPT_DESC_CHAT_CUSTOM_FONT, "Chat", "CustomChatFont", function() self:UpdateChatFont() end)
-    if WT.Utils and WT.Utils.SharedMedia then
-        panel:CreateDropdown(builder, WT.L.OPT_FONT, WT.L.OPT_DESC_FONT, "Chat", "ChatFont", WT.Utils.SharedMedia:GetOptions("font"), function() self:UpdateChatFont() end, chatFontInit)
+        local chatFontInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_CUSTOM_FONT, WT.L.OPT_DESC_CHAT_CUSTOM_FONT, "Chat", "CustomChatFont", function() self:UpdateChatFont() end)
+        if WT.Utils and WT.Utils.SharedMedia then
+            panel:CreateDropdown(builder, WT.L.OPT_FONT, WT.L.OPT_DESC_FONT, "Chat", "ChatFont", WT.Utils.SharedMedia:GetOptions("font"), function() self:UpdateChatFont() end, chatFontInit)
+        end
+        panel:CreateSlider(builder, WT.L.OPT_FONT_SIZE, WT.L.OPT_DESC_FONT_SIZE, "Chat", "ChatFontSize", 8, 24, 1, function() self:UpdateChatFont() end, chatFontInit)
+        panel:CreateOutlineDropdown(builder, WT.L.OPT_FONT_OUTLINE, WT.L.OPT_DESC_FONT_OUTLINE, "Chat", "ChatFontOutline", function() self:UpdateChatFont() end, chatFontInit)
+
+        local chatBgInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_CUSTOM_BG, WT.L.OPT_DESC_CHAT_CUSTOM_BG, "Chat", "CustomChatBg", function() self:UpdateChatBackground() end)
+        panel:CreateColorPicker(builder, WT.L.OPT_COLOR_BG, WT.L.OPT_DESC_COLOR_BG, "Chat", "ChatBgColor", true, chatBgInit, function() self:UpdateChatBackground() end)
+
+        local tsInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_TIMESTAMPS, WT.L.OPT_DESC_CHAT_TIMESTAMPS, "Chat", "Timestamps", function() self:UpdateTimestamps() end)
+        local tsFormatOptions = {
+            { value = "%H:%M", label = "15:30 (24h)" },
+            { value = "%H:%M:%S", label = "15:30:45 (24h)" },
+            { value = "%I:%M %p", label = "03:30 PM (12h)" },
+            { value = "%I:%M:%S %p", label = "03:30:45 PM (12h)" }
+        }
+        panel:CreateDropdown(builder, WT.L.OPT_CHAT_TIMESTAMP_FORMAT, WT.L.OPT_DESC_CHAT_TIMESTAMP_FORMAT, "Chat", "TimestampFormat", tsFormatOptions, function() self:UpdateTimestamps() end, tsInit)
+        panel:CreateColorPicker(builder, WT.L.OPT_CHAT_TIMESTAMP_COLOR, WT.L.OPT_DESC_CHAT_TIMESTAMP_COLOR, "Chat", "TimestampColor", false, tsInit, function() self:UpdateTimestamps() end)
+        local tsStyleOptions = {
+            { value = 1, label = "(15:30)" },
+            { value = 2, label = "[15:30]" },
+            { value = 3, label = "15:30 |" }
+        }
+        panel:CreateDropdown(builder, WT.L.OPT_CHAT_TIMESTAMP_STYLE, WT.L.OPT_DESC_CHAT_TIMESTAMP_STYLE, "Chat", "TimestampStyle", tsStyleOptions, function() self:UpdateTimestamps() end, tsInit)
+        panel:CreateColorPicker(builder, WT.L.OPT_COLOR_BRACKET, WT.L.OPT_DESC_COLOR_BRACKET, "Chat", "TimestampBracketColor", false, tsInit, function() self:UpdateTimestamps() end)
+    
     end
-    panel:CreateSlider(builder, WT.L.OPT_FONT_SIZE, WT.L.OPT_DESC_FONT_SIZE, "Chat", "ChatFontSize", 8, 24, 1, function() self:UpdateChatFont() end, chatFontInit)
-    panel:CreateOutlineDropdown(builder, WT.L.OPT_FONT_OUTLINE, WT.L.OPT_DESC_FONT_OUTLINE, "Chat", "ChatFontOutline", function() self:UpdateChatFont() end, chatFontInit)
+    if ShowPart("Functions") then
+        panel:CreateTitle(builder, WT.L.GROUP_CHAT_FUNCTIONALITY)
+        AddDescription(WT.L.OPT_DESC_GROUP_CHAT_FUNCTIONALITY)
+    
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_FREE_ARROW, WT.L.OPT_DESC_CHAT_FREE_ARROW, "Chat", "FreeArrowKeys", function(value) self:UpdateArrowKeys(value) end)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_CLICKABLE_LINKS, WT.L.OPT_DESC_CHAT_CLICKABLE_LINKS, "Chat", "ClickableLinks")
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_UNCLAMP, WT.L.OPT_DESC_CHAT_UNCLAMP, "Chat", "UnclampChatFrames", function(value) self:UnclampChatFrames(value) end)
+    
+        local ccInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_CHAR_COUNT, WT.L.OPT_DESC_CHAT_CHAR_COUNT, "Chat", "CharCount", function() self:UpdateCharacterCount() end)
+    
+        local posOptions = {
+            { value = "TOP", label = WT.L.OPT_POS_TOP },
+            { value = "BOTTOM", label = WT.L.OPT_POS_BOTTOM }
+        }
+        panel:CreateDropdown(builder, WT.L.OPT_CHAT_CHAR_COUNT_POS, WT.L.OPT_DESC_CHAT_CHAR_COUNT_POS, "Chat", "CharCountPos", posOptions, function() self:UpdateCharacterCount() end, ccInit)
+    
+        if WT.Utils and WT.Utils.SharedMedia then
+            panel:CreateDropdown(builder, WT.L.OPT_FONT, WT.L.OPT_DESC_FONT, "Chat", "CharCountFont", WT.Utils.SharedMedia:GetOptions("font"), function() self:UpdateCharacterCount() end, ccInit)
+        end
+        panel:CreateSlider(builder, WT.L.OPT_FONT_SIZE, WT.L.OPT_DESC_FONT_SIZE, "Chat", "CharCountFontSize", 8, 24, 1, function() self:UpdateCharacterCount() end, ccInit)
+        panel:CreateOutlineDropdown(builder, WT.L.OPT_FONT_OUTLINE, WT.L.OPT_DESC_FONT_OUTLINE, "Chat", "CharCountFontOutline", function() self:UpdateCharacterCount() end, ccInit)
 
-    local chatBgInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_CUSTOM_BG, WT.L.OPT_DESC_CHAT_CUSTOM_BG, "Chat", "CustomChatBg", function() self:UpdateChatBackground() end)
-    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_BG, WT.L.OPT_DESC_COLOR_BG, "Chat", "ChatBgColor", true, chatBgInit, function() self:UpdateChatBackground() end)
-
-    local tsInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_TIMESTAMPS, WT.L.OPT_DESC_CHAT_TIMESTAMPS, "Chat", "Timestamps", function() self:UpdateTimestamps() end)
-    local tsFormatOptions = {
-        { value = "%H:%M", label = "15:30 (24h)" },
-        { value = "%H:%M:%S", label = "15:30:45 (24h)" },
-        { value = "%I:%M %p", label = "03:30 PM (12h)" },
-        { value = "%I:%M:%S %p", label = "03:30:45 PM (12h)" }
-    }
-    panel:CreateDropdown(builder, WT.L.OPT_CHAT_TIMESTAMP_FORMAT, WT.L.OPT_DESC_CHAT_TIMESTAMP_FORMAT, "Chat", "TimestampFormat", tsFormatOptions, function() self:UpdateTimestamps() end, tsInit)
-    panel:CreateColorPicker(builder, WT.L.OPT_CHAT_TIMESTAMP_COLOR, WT.L.OPT_DESC_CHAT_TIMESTAMP_COLOR, "Chat", "TimestampColor", false, tsInit, function() self:UpdateTimestamps() end)
-    local tsStyleOptions = {
-        { value = 1, label = "(15:30)" },
-        { value = 2, label = "[15:30]" },
-        { value = 3, label = "15:30 |" }
-    }
-    panel:CreateDropdown(builder, WT.L.OPT_CHAT_TIMESTAMP_STYLE, WT.L.OPT_DESC_CHAT_TIMESTAMP_STYLE, "Chat", "TimestampStyle", tsStyleOptions, function() self:UpdateTimestamps() end, tsInit)
-    panel:CreateColorPicker(builder, WT.L.OPT_COLOR_BRACKET, WT.L.OPT_DESC_COLOR_BRACKET, "Chat", "TimestampBracketColor", false, tsInit, function() self:UpdateTimestamps() end)
-    
-    panel:CreateTitle(builder, WT.L.GROUP_CHAT_FUNCTIONALITY)
-    AddDescription(WT.L.OPT_DESC_GROUP_CHAT_FUNCTIONALITY)
-    
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_FREE_ARROW, WT.L.OPT_DESC_CHAT_FREE_ARROW, "Chat", "FreeArrowKeys", function(value) self:UpdateArrowKeys(value) end)
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_CLICKABLE_LINKS, WT.L.OPT_DESC_CHAT_CLICKABLE_LINKS, "Chat", "ClickableLinks")
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_UNCLAMP, WT.L.OPT_DESC_CHAT_UNCLAMP, "Chat", "UnclampChatFrames", function(value) self:UnclampChatFrames(value) end)
-    
-    local ccInit = panel:CreateCheckbox(builder, WT.L.OPT_CHAT_CHAR_COUNT, WT.L.OPT_DESC_CHAT_CHAR_COUNT, "Chat", "CharCount", function() self:UpdateCharacterCount() end)
-    
-    local posOptions = {
-        { value = "TOP", label = WT.L.OPT_POS_TOP },
-        { value = "BOTTOM", label = WT.L.OPT_POS_BOTTOM }
-    }
-    panel:CreateDropdown(builder, WT.L.OPT_CHAT_CHAR_COUNT_POS, WT.L.OPT_DESC_CHAT_CHAR_COUNT_POS, "Chat", "CharCountPos", posOptions, function() self:UpdateCharacterCount() end, ccInit)
-    
-    if WT.Utils and WT.Utils.SharedMedia then
-        panel:CreateDropdown(builder, WT.L.OPT_FONT, WT.L.OPT_DESC_FONT, "Chat", "CharCountFont", WT.Utils.SharedMedia:GetOptions("font"), function() self:UpdateCharacterCount() end, ccInit)
+        panel:CreateCheckbox(builder, WT.L.OPT_CHAT_MOUSEWHEEL, WT.L.OPT_DESC_CHAT_MOUSEWHEEL, "Chat", "MouseWheelScroll")
     end
-    panel:CreateSlider(builder, WT.L.OPT_FONT_SIZE, WT.L.OPT_DESC_FONT_SIZE, "Chat", "CharCountFontSize", 8, 24, 1, function() self:UpdateCharacterCount() end, ccInit)
-    panel:CreateOutlineDropdown(builder, WT.L.OPT_FONT_OUTLINE, WT.L.OPT_DESC_FONT_OUTLINE, "Chat", "CharCountFontOutline", function() self:UpdateCharacterCount() end, ccInit)
-
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_MOUSEWHEEL, WT.L.OPT_DESC_CHAT_MOUSEWHEEL, "Chat", "MouseWheelScroll")
 end
 
 function Module:Initialize()
