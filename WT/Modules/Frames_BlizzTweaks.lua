@@ -457,68 +457,6 @@ function Module:SetupErrorBackground()
     end
 end
 
-local isSuppressingHelpTip = false
-
-function Module:UpdateTutorials()
-    if not self.tutorialsHooked and HelpTip then
-        self.tutorialsHooked = true
-        hooksecurefunc(HelpTip, "Show", function(this, parent, info)
-            if isSuppressingHelpTip then return end
-            if WT.DB.Frames.HideTutorials and parent and info then
-                if WT.DB.Frames.ShowTalentAlert then
-                    local pName = parent.GetName and parent:GetName() or ""
-                    
-                    if type(pName) == "string" then
-                        if string.find(pName, "TalentMicroButton") or string.find(pName, "PlayerSpellsMicroButton") then
-                            return
-                        end
-                    end
-                end
-
-                local tipText = info.text
-
-                -- Immediately suppress visual frame to avoid 1-frame flickering
-                if this.framePool and this.framePool.EnumerateActive then
-                    for frame in this.framePool:EnumerateActive() do
-                        if frame.Matches and frame:Matches(parent, tipText) then
-                            frame:SetAlpha(0)
-                        end
-                    end
-                end
-
-                -- Defer dismissal so Blizzard caller (e.g. OrderHallMissionUI) completes initialization without infinite recursion
-                C_Timer.After(0, function()
-                    if isSuppressingHelpTip then return end
-                    isSuppressingHelpTip = true
-
-                    -- Acknowledge first to satisfy CVars/callbacks and prevent re-show loops
-                    if this.Acknowledge then
-                        this:Acknowledge(parent, tipText)
-                    end
-
-                    -- If still showing after acknowledge attempt, force-hide
-                    if this.IsShowing and this:IsShowing(parent, tipText) and this.Hide then
-                        this:Hide(parent, tipText)
-                    end
-
-                    isSuppressingHelpTip = false
-                end)
-            end
-        end)
-    end
-    
-    if WT.DB.Frames.HideTutorials then
-        if WT.Utils and WT.Utils.Flags then WT.Utils.Flags:SetCVar("showTutorials", "0")
-        else C_CVar.SetCVar("showTutorials", "0") end
-
-        pcall(function()
-            if WT.Utils and WT.Utils.Flags then WT.Utils.Flags:SetCVar("hideHelptips", "1")
-            else C_CVar.SetCVar("hideHelptips", "1") end
-        end)
-    end
-end
-
-
 local cursorFrame
 function Module:UpdateCombatCursor(forceShow)
     if WT.DB.Frames.CombatCursor then

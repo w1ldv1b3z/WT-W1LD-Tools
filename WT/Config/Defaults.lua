@@ -5,7 +5,7 @@ WT.Config = WT.Config or {}
 -- 100% Opt-In Defaults Architecture
 WT.Config.Defaults = {
     Internal = {
-        DBVersion = 281,
+        DBVersion = 282,
     },
     Sync = {},
     General = {
@@ -353,8 +353,6 @@ WT.Config.Defaults = {
         ErrorFontSize = 14,
         ErrorFontOutline = "OUTLINE",
         CustomErrors = false,
-        HideTutorials = false,
-        ShowTalentAlert = false,
         CombatCleaner = false,
         AutoQuestTracker = false,
         CombatCursor = false,

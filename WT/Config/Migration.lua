@@ -223,4 +223,14 @@ function WT.Config:RunMigrations(db)
         end
         db.Internal.DBVersion = 240
     end
+
+    if currentVer < 282 then
+        -- "Hide Tutorials" was removed (Blizzard has its own option). Undo the hidden CVar it set;
+        -- showTutorials is left alone because players can see and change it in the game options.
+        if db.Frames and db.Frames.HideTutorials and C_CVar and C_CVar.GetCVarDefault then
+            local default = C_CVar.GetCVarDefault("hideHelptips")
+            if default then C_CVar.SetCVar("hideHelptips", default) end
+        end
+        db.Internal.DBVersion = 282
+    end
 end

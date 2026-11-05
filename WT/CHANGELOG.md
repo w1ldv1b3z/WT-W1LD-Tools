@@ -40,6 +40,7 @@
 - Action Bars: Removed "Key Down Casts", "Auto Push Spells" and "Hide Blizzard Numbers" because the game's own options (Esc > Options > Gameplay) offer them itself. The spell queue window stays, as the game has no setting for it; the slider now always shows the game's current value.
 - Action Bars: "Shorten Hotkeys" now also works without "Custom Hotkey Text".
 - Time Widget & Combat Tracker: Their module switches are gone; the options are always available.
+- Frames: Removed "Tutorials & HelpTips" and "Allow Talent Alerts". The game has its own option for this (Esc > Options > Gameplay > Interface > Display > "Tutorials"). The WT option could cause "Interface action blocked" errors on the action bars, e.g. when turning in a quest right after a fight. The tutorial setting of the game stays as it is; a hidden setting WT changed for this is reset to the game default.
 - Combat Tracker: The range display now uses LibRangeCheck-3.0, the community standard for range estimates. It also uses your own class spells, so it works much better in combat, and it is kept up to date with game changes.
 - Combat Tracker: "Hide Out of Combat" now only hides the combat time and is listed under "Show Combat Time". The range display stays visible.
 - Time Widget: Removed "Use Server Time" and "24-Hour Format". The widget now follows the game's own clock settings (right-click the widget or the minimap clock), so both clocks always show the same format.

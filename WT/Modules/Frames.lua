@@ -331,7 +331,6 @@ function Module:Initialize()
     self:UpdateRaidBossEmoteFont()
     self:UpdateErrorFilter()
     self:SetupErrorBackground()
-    self:UpdateTutorials()
     if WT.DB.Frames.DisableLowHealthFlash then
         self:UpdateLowHealthFlash(true)
     end
@@ -812,12 +811,6 @@ function Module:BuildOptions(builder, panel)
             self:UpdateTalkingHead(); PromptReload()
         end)
 
-    local tutInit = panel:CreateCheckbox(builder, WT.L.OPT_FRAMES_HIDE_TUTORIALS, WT.L.OPT_DESC_FRAMES_HIDE_TUTORIALS,
-        "Frames", "HideTutorials", function()
-            self:UpdateTutorials(); PromptReload()
-        end)
-    panel:CreateCheckbox(builder, WT.L.OPT_FRAMES_SHOW_TALENT_ALERT, WT.L.OPT_DESC_FRAMES_SHOW_TALENT_ALERT, "Frames",
-        "ShowTalentAlert", nil, tutInit)
     panel:CreateCheckbox(builder, WT.L.OPT_FRAMES_COMBAT_CLEANER, WT.L.OPT_DESC_FRAMES_COMBAT_CLEANER, "Frames",
         "CombatCleaner", function() self:UpdateCombatCleaner() end)
     panel:CreateCheckbox(builder, WT.L.OPT_FRAMES_AUTO_QUEST, WT.L.OPT_DESC_FRAMES_AUTO_QUEST, "Frames",

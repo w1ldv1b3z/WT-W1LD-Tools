@@ -29,7 +29,7 @@ Here is a rough overview of the features that have accumulated over time:
 - **Extended ColorPicker:** Replaces the default WoW color picker with an enhanced version to save your favorite custom colors and access class colors quickly.
 - **Move Windows:** You can move and scale most standard WoW windows (Character, LFG, Settings, etc.) by holding down a modifier key.
 - **Alerts & Toasts:** The anchor points for loot, achievements, Battle.net toasts, and error messages can be repositioned.
-- **Hide Elements:** If they bother you, you can simply hide XP bars, the bag bar, the "Talking Head," or tutorial tooltips.
+- **Hide Elements:** If they bother you, you can simply hide XP bars, the bag bar or the "Talking Head."
 - **Class-specific Colors:** Replaces or adjusts the standard class colors in various UI elements.
 - **Camera & Visuals:** Increases the maximum camera zoom out distance upon request and allows you to turn off effects like the red screen border at low health or the full-screen glow.
 - **Combat Cursor:** The cursor can be highlighted with colors or click animations so it doesn't get lost in the heat of combat.

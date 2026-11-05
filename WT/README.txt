@@ -61,7 +61,7 @@ WINDOWS & UI
   save custom colors and quickly access class colors.
 - Move Windows: Move and scale most standard WoW windows with a modifier key.
 - Alerts & Toasts: Reposition loot, achievements, BNet toasts, and errors.
-- Hide Elements: Hide XP bars, the bag bar, the Talking Head, or tutorials.
+- Hide Elements: Hide XP bars, the bag bar or the Talking Head.
 - Class-specific Colors: Replaces standard class colors in various UI elements.
 - Camera & Visuals: Increases max camera zoom, disables low health screen glow.
 - Combat Cursor: Highlights the cursor with colors or click animations.
