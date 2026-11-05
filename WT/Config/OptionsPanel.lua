@@ -296,7 +296,7 @@ end
 -- shown exactly as written in every language, so they are data here and not in the language files.
 -- Order = order on the page. icon = texture shown in the title badge and as a large watermark.
 local CREDITS = {
-    { name = "Schneedorn", title = "SUPPORT",      r = 1.00, g = 0.45, b = 0.65, icon = "Interface\\Icons\\INV_ValentinesCandy" },
+    { name = "Schneedorn", title = "SUPPORT",       r = 1.00, g = 0.45, b = 0.65, icon = "Interface\\Icons\\INV_Misc_Flower_04" },
     { name = "Jasmin",     title = "RUHEPOL",       r = 0.35, g = 0.90, b = 0.80, icon = "Interface\\Icons\\INV_Misc_Flower_02" },
     { name = "Adrian",     title = "TANKGOTT",      r = 0.55, g = 0.70, b = 1.00, icon = "Interface\\Icons\\INV_Shield_06" },
     { name = "B-Town",     title = "THE WHIZZARD!", r = 0.75, g = 0.50, b = 1.00, icon = "Interface\\Icons\\Spell_Holy_MagicalSentry" },
