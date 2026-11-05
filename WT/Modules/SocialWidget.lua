@@ -227,7 +227,6 @@ function Module:SetupWidget()
         end
 
         WT.Core.Events:Register("BN_FRIEND_INFO_CHANGED", DebounceUpdate)
-        WT.Core.Events:Register("BNET_FRIEND_INFO_UPDATED", DebounceUpdate)
         WT.Core.Events:Register("BN_FRIEND_ACCOUNT_ONLINE", DebounceUpdate)
         WT.Core.Events:Register("BN_FRIEND_ACCOUNT_OFFLINE", DebounceUpdate)
         WT.Core.Events:Register("BN_CONNECTED", DebounceUpdate)

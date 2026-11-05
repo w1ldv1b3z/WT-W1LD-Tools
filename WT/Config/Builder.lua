@@ -692,6 +692,8 @@ function Builder:CreateModuleToggle(builder, labelText, tooltipText, dbKey, icon
     bg:SetScript("OnClick", function()
         cb:SetChecked(not cb:GetChecked())
         WT.DB.Modules[dbKey] = cb:GetChecked()
+        -- WT-internal event, payload: module key, new state
+        WT.Core.Events:Fire("WT_MODULE_TOGGLED", dbKey, WT.DB.Modules[dbKey])
         UpdateBg(bg:IsMouseOver() or cfgBtn:IsMouseOver())
         if WT.Config.OptionsPanel and WT.Config.OptionsPanel.ShowReloadPrompt then
             WT.Config.OptionsPanel:ShowReloadPrompt()

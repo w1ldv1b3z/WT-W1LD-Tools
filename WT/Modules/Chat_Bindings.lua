@@ -80,15 +80,17 @@ for i = 1, 3 do
     btns[#btns+1] = btnCustom
 end
 
--- Hook into module toggle to enable/disable buttons so we don't need to read WT.DB inside OnClick
-if WT.Core and WT.Core.Events then
-    WT.Core.Events:Register("CONFIG_UPDATED", function()
-        local isEnabled = WT.DB.Modules.Keybindings
-        for _, btn in ipairs(btns) do
-            if isEnabled then btn:Enable() else btn:Disable() end
-        end
-    end)
+-- Enable/disable the buttons together with the module so we don't need to read WT.DB inside OnClick
+local function UpdateButtonState()
+    local isEnabled = WT.DB.Modules.Keybindings
+    for _, btn in ipairs(btns) do
+        if isEnabled then btn:Enable() else btn:Disable() end
+    end
 end
+WT.Core.Events:Register("PLAYER_LOGIN", UpdateButtonState, "Keybindings")
+WT.Core.Events:Register("WT_MODULE_TOGGLED", function(_, moduleKey)
+    if moduleKey == "Keybindings" then UpdateButtonState() end
+end, "Keybindings")
 
 -- Clear history button (Taint-free as it doesn't open the chat frame)
 WT_ChatHotkey_Clear = function()
