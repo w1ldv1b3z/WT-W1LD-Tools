@@ -28,6 +28,7 @@ Locales\deDE.lua
 # Core
 Core\Init.lua
 Core\Events.lua
+Core\Modules.lua
 
 # Utils
 Utils\Compat.lua
