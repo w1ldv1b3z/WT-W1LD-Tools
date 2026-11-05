@@ -5,7 +5,7 @@ WT.Config = WT.Config or {}
 -- 100% Opt-In Defaults Architecture
 WT.Config.Defaults = {
     Internal = {
-        DBVersion = 282,
+        DBVersion = 283,
     },
     Sync = {},
     General = {
