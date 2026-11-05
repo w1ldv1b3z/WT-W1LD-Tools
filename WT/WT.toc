@@ -1,0 +1,92 @@
+## Interface: 120100, 120105, 16001, 16000
+## Interface-Mainline: 120150
+## Interface-Forever: 16001
+## Interface-Camelot: 16001
+## AllowLoadGameType: standard, camelot
+## Title: |cFF00FFFFWT (W1LD Tools)|r|cFF888888 by |cFF00FFFFw1ldv1b3z|r
+## Notes: A comprehensive UI and engine tweak collection. Features dynamic Account-Wide settings synchronization.
+## Author: w1ldv1b3z
+## Version: v.3.0.0-dev
+## IconTexture: Interface\AddOns\WT\Media\Graphics\Logo.tga
+## SavedVariables: WTSavedVariables
+## Category: User Interface
+## OptionalDeps: LibSharedMedia-3.0
+## AddonCompartmentFunc: WT_OnAddonCompartmentClick
+## X-Curse-Project-ID: 1490550
+
+# 3rd Party Libraries
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+
+# Locales
+Locales\Locales.lua
+Locales\enUS.lua
+Locales\deDE.lua
+
+# Core
+Core\Init.lua
+Core\Events.lua
+
+# Utils
+Utils\Compat.lua
+Utils\Safety.lua
+Utils\Units.lua
+Utils\CustomMedia.lua
+Utils\Audio.lua
+Utils\Colors.lua
+Utils\Commands.lua
+Utils\DataTransfer.lua
+Utils\Flags.lua
+Utils\Logger.lua
+Utils\Strings.lua
+Utils\Realms.lua
+Utils\SharedMedia.lua
+
+# Config
+Config\Defaults.lua
+Config\Builder.lua
+Config\Migration.lua
+Config\OptionsPanel.lua
+Config\Profiles.lua
+
+# Modules
+Modules\ActionBars.lua
+Modules\Automations.lua
+Modules\ColorPicker.lua
+Modules\Chat.lua
+Modules\Settings_Sync.lua
+Modules\Chat_Bindings.lua
+Modules\Chat_Cache.lua
+Modules\Chat_Channels.lua
+Modules\Chat_UI.lua
+Modules\Chat_Copy.lua
+Modules\ClassColors.lua
+Modules\Chat_History.lua
+Modules\Chat_Filter.lua
+Modules\Chat_SmartLogins.lua
+Modules\Coords.lua
+Modules\CombatTracker.lua
+Modules\Frames.lua
+Modules\Frames_BlizzTweaks.lua
+Modules\Frames_UnitFrames.lua
+Modules\Frames_Movable.lua
+Modules\CharacterSheet.lua
+Modules\Groups.lua
+Modules\LFG.lua
+Modules\Minimap.lua
+Modules\SocialWidget.lua
+Modules\SocialWidget_Tooltip.lua
+Modules\Tooltip.lua
+Modules\Tooltip_Item.lua
+Modules\Tooltip_Unit.lua
+Modules\Nameplates.lua
+Modules\Questing.lua
+Modules\Fader.lua
+Modules\Vendors.lua
+Modules\TimeWidget.lua
+Modules\Wowhead.lua
+Modules\Audio.lua
+Modules\Farming.lua
+Modules\UpdateCheck.lua

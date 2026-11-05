@@ -1,0 +1,5 @@
+<Bindings>
+    <Binding name="WT_CHAT_CLEAR" hidden="true">
+        WT_ChatHotkey_Clear()
+    </Binding>
+</Bindings>
