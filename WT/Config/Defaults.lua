@@ -32,7 +32,6 @@ WT.Config.Defaults = {
         Nameplates = false,
         SocialWidget = false,
         TimeWidget = false,
-        Maps = false,
         Audio = false,
         Farming = false,
         Questing = false,

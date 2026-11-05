@@ -389,7 +389,7 @@ function Panel:Build()
 
                 local mainCat = WT.Config.OptionsPanel.ModuleToCategory and
                     WT.Config.OptionsPanel.ModuleToCategory[match.module] or match.module
-                local locMod = WT.L["CATEGORY_" .. string.upper(mainCat)] or mainCat
+                local locMod = WT.L["CATEGORY_" .. string.upper(mainCat)]
 
                 local path = locMod
                 if match.title then
@@ -503,7 +503,6 @@ function Panel:Build()
         Nameplates = "Interface\\Icons\\Spell_Holy_BlessingOfStrength",
         SocialWidget = "Interface\\Icons\\Achievement_GuildPerk_EverybodysFriend",
         TimeWidget = "Interface\\Icons\\Spell_Holy_BorrowedTime",
-        Maps = "Interface\\Icons\\INV_Misc_Map_01",
         Audio = "Interface\\Icons\\INV_Misc_Bell_01",
         Farming = "Interface\\Icons\\INV_Misc_Shovel_01",
         SettingsSync = "Interface\\Icons\\INV_Gizmo_02",
@@ -513,7 +512,7 @@ function Panel:Build()
     local moduleGroups = {
         { title = WT.L.GROUP_MOD_UI,  modules = { "ActionBars", "Frames", "Nameplates", "CharacterSheet", "ColorPicker" } },
         { title = WT.L.GROUP_MOD_CHAT,          modules = { "Chat", "Keybindings", "SocialWidget", "Groups" } },
-        { title = WT.L.GROUP_MOD_INFO, modules = { "Tooltip", "Maps", "CombatTracker", "TimeWidget" } },
+        { title = WT.L.GROUP_MOD_INFO, modules = { "Tooltip", "CombatTracker", "TimeWidget" } },
         { title = WT.L.GROUP_MOD_AUTO, modules = { "Automations", "Farming", "SettingsSync" } },
         { title = WT.L.CATEGORY_AUDIO,          modules = { "Audio" } }
     }
@@ -556,9 +555,8 @@ function Panel:Build()
 
         local isRight = false
         for _, modName in ipairs(group.modules) do
-            local label = WT.L["OPT_MODULE_" .. string.upper(modName)] or ("Enable " .. modName)
-            local desc = WT.L["OPT_DESC_MODULE_" .. string.upper(modName)] or
-                ("Enables the core " .. modName .. " module.")
+            local label = WT.L["OPT_MODULE_" .. string.upper(modName)]
+            local desc = WT.L["OPT_DESC_MODULE_" .. string.upper(modName)]
             local icon = moduleIcons[modName] or "Interface\\Icons\\INV_Misc_QuestionMark"
 
             WT.Config.Builder:CreateModuleToggle(rootBuilder, label, desc, modName, icon, isRight)
@@ -642,7 +640,7 @@ function Panel:Build()
         { name = "CharacterSheet", check = { "CharacterSheet" },              modules = { "CharacterSheet" } },
         { name = "Nameplates",     check = { "Nameplates" },                  modules = { "Nameplates" } },
         { name = "Tooltip",        check = { "Tooltip" },                     modules = { "Tooltip", "Wowhead" } },
-        { name = "Maps",           check = { "Maps" },                        modules = { "Minimap", "Coords" } },
+        { name = "Maps",           check = {},                                modules = { "Minimap", "Coords" } },
         { name = "Chat",           check = { "Chat" },                        modules = { "ChatUI", "Chat", "ChatFilter", "ChatChannels" } },
         { name = "Keybindings",    check = { "Keybindings" },                 modules = { "Keybindings" } },
         { name = "Social",         check = { "SocialWidget", "Groups" },      modules = { "SocialWidget", "Groups", "LFG" } },
@@ -654,14 +652,15 @@ function Panel:Build()
 
     local sortedCategories = {}
     for _, tabData in ipairs(tabs) do
-        local isEnabled = false
+        -- Categories without a module toggle (modules built with WT:NewModule) are always shown
+        local isEnabled = #tabData.check == 0
         for _, cMod in ipairs(tabData.check) do
             if WT.DB.Modules[cMod] then
                 isEnabled = true; break
             end
         end
         if isEnabled then
-            local catName = WT.L["CATEGORY_" .. string.upper(tabData.name)] or tabData.name
+            local catName = WT.L["CATEGORY_" .. string.upper(tabData.name)]
             table.insert(sortedCategories, { name = tabData.name, title = catName, subModules = tabData.modules })
         end
     end
@@ -695,8 +694,6 @@ function Panel:Build()
         LFG = "Groups",
         Tooltip = "Tooltip",
         Wowhead = "Tooltip",
-        Minimap = "Maps",
-        Coords = "Maps",
         CombatTracker = "CombatTracker",
         TimeWidget = "TimeWidget",
         Automations = "Automations",
@@ -724,7 +721,9 @@ function Panel:Build()
             local requiredToggle = moduleToggleMap[subName]
             if not requiredToggle or WT.DB.Modules[requiredToggle] then
                 local module = WT.Modules[subName]
-                if module and type(module.BuildOptions) == "function" then
+                -- Modules built with WT:NewModule hide their options on clients that do not support them
+                local available = not (module and module.IsAvailable) or module:IsAvailable()
+                if module and available and type(module.BuildOptions) == "function" then
                     module:BuildOptions(builder, WT.Config.Builder)
                 end
             end
