@@ -14,14 +14,23 @@
 - Keybindings: The chat hotkeys are now really switched off when the Keybindings module is disabled.
 - Minimap: WT no longer switches off the game's built-in mouse wheel zoom on the minimap. Previously this happened even when all WT minimap options were disabled.
 - Minimap: The player arrow is only changed while "Fix Player Arrow" is enabled. Turning the option off restores the Blizzard arrow immediately.
+- Action Bars: WT no longer changes your game settings on login. Previously "Key Down Casts", "Auto Push Spells" and the spell queue window were overwritten with WT's values every time you logged in.
+- Action Bars: With all options off the action buttons are now left completely untouched. Previously WT changed fonts, text colors, icon colors, the cooldown swipe and the cooldown numbers even when nothing was enabled (e.g. cooldown numbers were shown although they were turned off in the game options).
+- Action Bars: Several options (text styling, cooldown hooks) had no effect at all because they targeted a part of the game interface that no longer exists. They work again.
+- Action Bars: "Out of Range Tint" works again. With a custom hotkey color, hotkeys now also turn red again while out of range and no longer switch to the custom color when you hover over the button.
+- Action Bars: Turning off any action bar option now immediately restores the original look, without a reload. This also applies to Masque support and the vehicle exit button protection.
 - Map Coordinates: Changes to colors and the separator now apply immediately instead of after a reload. Where the game does not provide a position (e.g. in instances), "N/A" is shown instead of "0.0, 0.0".
 - General: More reliable internal event handling. A feature that switches itself off while the game reports an event no longer causes another feature to miss that event, and actions postponed until the end of combat now report errors instead of failing silently.
 
 ### Added
+- Frames / UnitFrames: New option "Combat Glow Only in Real Combat". The game already shows the red combat glow on the player frame as soon as your auto attack starts, even if the target is far out of range; with this option it only appears once you are really in combat.
 - Commands: New `/wt debug` command to switch debug messages in chat on or off. The debug mode had no way to be enabled anymore.
 
 ### Changed
 - General: Module switches are being phased out. Every WT feature stays off until you enable it yourself, and turning a feature off immediately restores the game's default. First step: the "Maps" module switch is gone; the minimap and map coordinate options are now always available.
+- Action Bars: The "Action Bars" module switch is gone; its options are always available.
+- Action Bars: Removed "Key Down Casts", "Auto Push Spells" and "Hide Blizzard Numbers" because the game's own options (Esc > Options > Gameplay) offer them itself. The spell queue window stays, as the game has no setting for it; the slider now always shows the game's current value.
+- Action Bars: "Shorten Hotkeys" now also works without "Custom Hotkey Text".
 - Minimap: The "Mouse Wheel Zoom" option is hidden on clients where the minimap already zooms with the mouse wheel on its own. "Auto-Reset Zoom" works together with the game's own zoom.
 - Chat / Smart Logins: Guild members and WoW friends are now handled together by one option ("Smart Guild & Friend Logins"), because the game uses the same login sound for both. The separate "Show Friend Logins" option has been removed. Battle.net friends keep their own option.
 - Chat messages: Debug messages, the "Edit Mode" and "WT Update" labels and the on/off status of `/wt gz` are now translated as well.

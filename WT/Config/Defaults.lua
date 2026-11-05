@@ -21,7 +21,6 @@ WT.Config.Defaults = {
     },
     Modules = {
         Automations = false,
-        ActionBars = false,
         Chat = false,
         Keybindings = false,
         CharacterSheet = false,
@@ -85,9 +84,7 @@ WT.Config.Defaults = {
         WARRIOR     = { r = 0.78, g = 0.61, b = 0.43, a = 1 },
     },
     ActionBars = {
-        KeyDown = true,
-        AutoPushSpellToActionBar = true,
-        SpellQueueWindow = 400,
+        SpellQueueWindow = 400, -- mirrors the game setting, never written on login
         OutofRangeTint = false,
         CustomMacroText = false,
         HideMacroText = false,
@@ -118,7 +115,6 @@ WT.Config.Defaults = {
         CustomCooldown = false,
         CooldownSwipeColor = { r = 0, g = 0, b = 0, a = 0.8 },
         CooldownEdge = false,
-        HideCooldownNumbers = false,
         MasqueSupport = false,
         ProtectVehicleButton = false,
     },
@@ -430,6 +426,7 @@ WT.Config.Defaults = {
         UnitFramesRestGlowColor = { r = 1, g = 0.8, b = 0, a = 1 },
         UnitFramesAggroGlow = "DEFAULT",
         UnitFramesAggroGlowColor = { r = 1, g = 0, b = 0, a = 1 },
+        UnitFramesCombatGlowRealCombat = false,
         UnitFramesPortrait = "DEFAULT",
         UnitFramesHideResting = false,
         UnitFramesHideCombat = false,

@@ -492,7 +492,6 @@ function Panel:Build()
 
     local moduleIcons = {
         Automations = "Interface\\Icons\\Trade_Engineering",
-        ActionBars = "Interface\\Icons\\INV_Misc_Book_09",
         Chat = "Interface\\Icons\\UI_Chat",
         Keybindings = "Interface\\Icons\\INV_Misc_Key_03",
         CharacterSheet = "Interface\\Icons\\INV_Chest_Cloth_17",
@@ -510,7 +509,7 @@ function Panel:Build()
     }
 
     local moduleGroups = {
-        { title = WT.L.GROUP_MOD_UI,  modules = { "ActionBars", "Frames", "Nameplates", "CharacterSheet", "ColorPicker" } },
+        { title = WT.L.GROUP_MOD_UI,  modules = { "Frames", "Nameplates", "CharacterSheet", "ColorPicker" } },
         { title = WT.L.GROUP_MOD_CHAT,          modules = { "Chat", "Keybindings", "SocialWidget", "Groups" } },
         { title = WT.L.GROUP_MOD_INFO, modules = { "Tooltip", "CombatTracker", "TimeWidget" } },
         { title = WT.L.GROUP_MOD_AUTO, modules = { "Automations", "Farming", "SettingsSync" } },
@@ -636,7 +635,7 @@ function Panel:Build()
     local tabs = {
         { name = "Frames",         check = { "Frames" },                      modules = { "Frames", "ClassColors", "Fader" } },
         { name = "UnitFrames",     check = { "Frames" },                      modules = { "UnitFramesOptions" } },
-        { name = "ActionBars",     check = { "ActionBars" },                  modules = { "ActionBars" } },
+        { name = "ActionBars",     check = {},                                modules = { "ActionBars" } },
         { name = "CharacterSheet", check = { "CharacterSheet" },              modules = { "CharacterSheet" } },
         { name = "Nameplates",     check = { "Nameplates" },                  modules = { "Nameplates" } },
         { name = "Tooltip",        check = { "Tooltip" },                     modules = { "Tooltip", "Wowhead" } },
@@ -678,7 +677,6 @@ function Panel:Build()
     end
 
     local moduleToggleMap = {
-        ActionBars = "ActionBars",
         Frames = "Frames",
         ClassColors = "Frames",
         Fader = "Frames",

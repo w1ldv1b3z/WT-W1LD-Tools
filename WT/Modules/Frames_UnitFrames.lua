@@ -1001,9 +1001,16 @@ function Module:UpdateGlows()
             StyleGlow(statusTexture, db.UnitFramesRestGlow, db.UnitFramesRestGlowColor, DARK_REST_COLOR,
                 BLIZZ_REST_COLOR)
         elseif PlayerFrame and PlayerFrame.inCombat then
-            statusTexture:Show()
-            StyleGlow(statusTexture, db.UnitFramesAggroGlow, db.UnitFramesAggroGlowColor, DARK_COMBAT_COLOR,
-                BLIZZ_COMBAT_COLOR)
+            -- Blizzard sets inCombat as soon as auto attack starts (PLAYER_ENTER_COMBAT), even if the
+            -- target is out of range. Optionally show the combat glow only while really in combat;
+            -- PLAYER_REGEN_DISABLED/ENABLED call PlayerFrame_UpdateStatus again, which re-runs this.
+            if db.UnitFramesCombatGlowRealCombat and not UnitAffectingCombat("player") then
+                statusTexture:Hide()
+            else
+                statusTexture:Show()
+                StyleGlow(statusTexture, db.UnitFramesAggroGlow, db.UnitFramesAggroGlowColor, DARK_COMBAT_COLOR,
+                    BLIZZ_COMBAT_COLOR)
+            end
         end
     end
 
@@ -1434,6 +1441,8 @@ function WT.Modules.UnitFramesOptions:BuildOptions(ufBuilder, panel)
         "Frames", "UnitFramesAggroGlowColor", true, ufInit, function()
             if Module.UpdatePlayerFrame then Module:UpdatePlayerFrame() end
         end, true)
+    panel:CreateCheckbox(ufBuilder, WT.L.OPT_FRAMES_UF_COMBAT_GLOW_REAL, WT.L.OPT_FRAMES_UF_COMBAT_GLOW_REAL_DESC, "Frames",
+        "UnitFramesCombatGlowRealCombat", function() Module:UpdateGlows() end, ufInit)
     panel:CreateColorPicker(ufBuilder, WT.L.OPT_FRAMES_UF_CORNER_COLOR, WT.L.OPT_FRAMES_UF_CORNER_COLOR_DESC, "Frames",
         "UnitFramesCornerIconColor", true, ufInit, ufUpdate, true)
 
