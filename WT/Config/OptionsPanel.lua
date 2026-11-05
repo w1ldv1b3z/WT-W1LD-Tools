@@ -499,7 +499,6 @@ function Panel:Build()
         Tooltip = "Interface\\Icons\\INV_Misc_Spyglass_02",
         Groups = "Interface\\Icons\\Spell_Holy_PrayerOfHealing",
         Nameplates = "Interface\\Icons\\Spell_Holy_BlessingOfStrength",
-        SocialWidget = "Interface\\Icons\\Achievement_GuildPerk_EverybodysFriend",
         Audio = "Interface\\Icons\\INV_Misc_Bell_01",
         Farming = "Interface\\Icons\\INV_Misc_Shovel_01",
         SettingsSync = "Interface\\Icons\\INV_Gizmo_02",
@@ -508,7 +507,7 @@ function Panel:Build()
 
     local moduleGroups = {
         { title = WT.L.GROUP_MOD_UI,  modules = { "Frames", "Nameplates", "CharacterSheet", "ColorPicker" } },
-        { title = WT.L.GROUP_MOD_CHAT,          modules = { "Chat", "Keybindings", "SocialWidget", "Groups" } },
+        { title = WT.L.GROUP_MOD_CHAT,          modules = { "Chat", "Keybindings", "Groups" } },
         { title = WT.L.GROUP_MOD_INFO, modules = { "Tooltip" } },
         { title = WT.L.GROUP_MOD_AUTO, modules = { "Automations", "Farming", "SettingsSync" } },
         { title = WT.L.CATEGORY_AUDIO,          modules = { "Audio" } }
@@ -640,7 +639,7 @@ function Panel:Build()
         { name = "Maps",           check = {},                                modules = { "Minimap", "Coords" } },
         { name = "Chat",           check = { "Chat" },                        modules = { "ChatUI", "Chat", "ChatFilter", "ChatChannels" } },
         { name = "Keybindings",    check = { "Keybindings" },                 modules = { "Keybindings" } },
-        { name = "Social",         check = { "SocialWidget", "Groups" },      modules = { "SocialWidget", "Groups", "LFG" } },
+        { name = "Social",         check = {},                                modules = { "SocialWidget", "Groups", "LFG" } },
         { name = "Widgets",        check = {},                                modules = { "CombatTracker", "TimeWidget" } },
         { name = "Automations",    check = { "Automations" },                 modules = { "Automations", "Questing", "Vendor", "Farming" } },
         { name = "Audio",          check = { "Audio" },                       modules = { "Audio" } },
@@ -685,7 +684,6 @@ function Panel:Build()
         ChatFilter = "Chat",
         ChatChannels = "Chat",
         Keybindings = "Keybindings",
-        SocialWidget = "SocialWidget",
         Groups = "Groups",
         LFG = "Groups",
         Tooltip = "Tooltip",

@@ -102,7 +102,7 @@ Here is a rough overview of the features that have accumulated over time:
 ### Small Trackers / Widgets
 - **System:** A simple display for FPS, latency, and memory usage.
 - **Time:** A small widget for the time and date.
-- **Social:** Shows you online guild members and Battle.net friends.
+- **Social:** Shows you online guild members and Battle.net friends, with a sortable detail tooltip and click to whisper.
 
 ---
 

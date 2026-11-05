@@ -1,76 +1,112 @@
 local addonName, WT = ...
+
+-- ============================================================================
+-- SOCIAL WIDGET: HOVER TOOLTIP
+-- ============================================================================
+-- Lists online guild members, WoW friends and Battle.net friends in other games / the app.
+-- Uses the pre-created WTSocialTooltip (see Core/Init.lua) so the Tooltip module can style it.
+-- With "Click to Whisper" the tooltip stays open while the mouse is over it, and every entry
+-- gets an invisible button on top of its line that opens a whisper.
+
 local Module = WT.Modules.SocialWidget
 
-local guildListCache = {}
-local wowFriendsListCache = {}
-local appFriendsListCache = {}
-
 local tostring = tostring
-local string_format = string.format
 local string_gsub = string.gsub
-local string_upper = string.upper
-local string_find = string.find
-local table_insert = table.insert
-local table_wipe = table.wipe or wipe
-local pcall = pcall
-local GetRealmName = GetRealmName
-local UnitFactionGroup = UnitFactionGroup
-local InCombatLockdown = InCombatLockdown
-
-local Ambiguate = Ambiguate or
-function(name, context) return name and
-    ((context == "short" or context == "guild") and string.match(name, "^([^%-]+)") or name) or "" end
-local GetNumGuildMembers = GetNumGuildMembers or (C_GuildInfo and C_GuildInfo.GetNumGuildMembers) or
-function() return 0 end
-local GetGuildRosterInfo = GetGuildRosterInfo or (C_GuildInfo and C_GuildInfo.GetGuildRosterInfo) or
-function() return nil end
-
-local strsplit = strsplit or string.split or function(d, s)
-    if not s then return nil end
-    local t, i = {}, 1
-    while true do
-        local j = string.find(s, d, i, true)
-        if not j then
-            table.insert(t, string.sub(s, i))
-            break
-        end
-        table.insert(t, string.sub(s, i, j - 1))
-        i = j + #d
-    end
-    return (unpack or rawget(table, "unpack"))(t)
-end
+local string_match = string.match
+local string_lower = string.lower
+local string_format = string.format
+local table_sort = table.sort
+local wipe = wipe
 
 local Unsecret = WT.Utils.Safety.Unsecret
 local SafeNum = WT.Utils.Safety.SafeNum
+local SafeBool = WT.Utils.Safety.SafeBool
+
+local DIVIDER = "|TInterface\\Common\\UI-TooltipDivider-Transparent:8:260:0:3|t"
+local COLOR_BNET_NAME = "|cFF82C5FF"
+local COLOR_CLIENT = "|cFF00FFFF"
+local COLOR_GROUP = "|cFF66CCFF"
+local COLOR_MOBILE = "|cFF999999"
+local COLOR_FALLBACK_CLASS = "ffffffff"
+local COLOR_FALLBACK_BNET_CLASS = "ff4da6ff"
+local CLIENT_ICON_SIZE = 14
+local HOVER_CHECK_INTERVAL = 0.1
+
+-- GetGuildRosterInfo status values
+local STATUS_AFK = 1
+local STATUS_DND = 2
+
+local guildEntries = {}
+local mobileEntries = {}
+local wowFriendEntries = {}
+local appFriendEntries = {}
+local groupGUIDs = {}
+
+-- Line index -> entry, filled while building an interactive tooltip
+local lineEntries = {}
+local rowButtons = {}
+
+-- ----------------------------------------------------------------------------
+-- Text helpers
+-- ----------------------------------------------------------------------------
+
+--- Splits "Name-Realm" into name and realm; realm falls back to the player's realm.
+local function SplitName(fullName)
+    local name, realm = string_match(fullName, "^([^%-]+)%-(.+)$")
+    if not name then
+        return fullName, Unsecret(GetRealmName())
+    end
+    return name, realm
+end
+
+local function GetClassColorHex(classFile)
+    if not classFile then return nil end
+    local color = (WT.DB.ClassColors and WT.DB.ClassColors[classFile]) or RAID_CLASS_COLORS[classFile]
+    return color and WT.Colors:GetHex(color) or nil
+end
+
+local function GetClientIcon(client)
+    local getAtlas = _G["BNet_GetClientEmbeddedAtlas"]
+    if getAtlas then
+        return getAtlas(client, CLIENT_ICON_SIZE) .. " "
+    end
+    return ""
+end
 
 local function GetLevelString(level)
-    if not WT.DB.SocialWidget.ShowLevel then return "" end
-    local c = WT.Colors:GetHex(WT.DB.SocialWidget.ColLevel, 1, 0.8196, 0)
-    if not level or level == "" or level == 0 then
-        return "|c" .. c .. "[--]|r "
+    local db = WT.DB.SocialWidget
+    if not db.ShowLevel then return "" end
+    local color = WT.Colors:GetHex(db.ColLevel, 1, 0.8196, 0)
+    if not level or level == 0 then
+        return "|c" .. color .. "[--]|r "
     end
-    return "|c" .. c .. "[" .. level .. "]|r "
+    return "|c" .. color .. "[" .. level .. "]|r "
 end
 
 local function GetRaceString(race)
-    if not WT.DB.SocialWidget.ShowRace then return "" end
-    local c = WT.Colors:GetHex(WT.DB.SocialWidget.ColRace, 1, 1, 1)
+    local db = WT.DB.SocialWidget
+    if not db.ShowRace then return "" end
+    local color = WT.Colors:GetHex(db.ColRace, 1, 1, 1)
     if not race or race == "" then
-        return "|c" .. c .. "---|r "
+        return "|c" .. color .. "---|r "
     end
-    return "|c" .. c .. race .. "|r "
+    return "|c" .. color .. race .. "|r "
 end
 
-local function GetGenderColor(sex)
-    if not WT.DB.SocialWidget.ShowGender or not sex then return "" end
-    local pColor = "|c" .. WT.Colors:GetHex(WT.DB.SocialWidget.ColRace, 1, 1, 1)
-    local maleStr = string_gsub(tostring(WT.L.GENDER_MALE), "[%(%)]", "")
-    local femaleStr = string_gsub(tostring(WT.L.GENDER_FEMALE), "[%(%)]", "")
-    if sex == 2 then return pColor ..
-        "(|r|c" .. WT.Colors:GetHex(WT.DB.SocialWidget.ColMale, 0, 0.44, 1) .. maleStr .. "|r" .. pColor .. ")|r " end
-    if sex == 3 then return pColor ..
-        "(|r|c" .. WT.Colors:GetHex(WT.DB.SocialWidget.ColFemale, 1, 0.41, 0.7) .. femaleStr .. "|r" .. pColor .. ")|r " end
-    return ""
+local function GetGenderString(sex)
+    local db = WT.DB.SocialWidget
+    if not db.ShowGender or not sex then return "" end
+    local bracketColor = "|c" .. WT.Colors:GetHex(db.ColRace, 1, 1, 1)
+    local label, color
+    if sex == 2 then
+        label, color = WT.L.GENDER_MALE, WT.Colors:GetHex(db.ColMale, 0, 0.44, 1)
+    elseif sex == 3 then
+        label, color = WT.L.GENDER_FEMALE, WT.Colors:GetHex(db.ColFemale, 1, 0.41, 0.7)
+    else
+        return ""
+    end
+    label = string_gsub(tostring(label), "[%(%)]", "")
+    return bracketColor .. "(|r|c" .. color .. label .. "|r" .. bracketColor .. ")|r "
 end
 
 local function GetFactionIcon(faction)
@@ -80,308 +116,431 @@ local function GetFactionIcon(faction)
     return "|TInterface\\COMMON\\Indicator-Gray:14:14:0:-1|t "
 end
 
-local function GetLocationString(loc)
-    if not WT.DB.SocialWidget.ShowLocation then return "" end
-    local c = WT.Colors:GetHex(WT.DB.SocialWidget.ColLocation, 0.66, 0.66, 0.66)
-    if not loc or loc == "" then
-        return "|c" .. c .. "- ---|r "
-    end
-    return "|c" .. c .. "- " .. loc .. "|r "
+local function GetLocationString(location)
+    local db = WT.DB.SocialWidget
+    if not db.ShowLocation then return "" end
+    local color = WT.Colors:GetHex(db.ColLocation, 0.66, 0.66, 0.66)
+    if not location or location == "" then location = "---" end
+    return "|c" .. color .. "- " .. location .. "|r "
 end
 
 local function GetRealmString(realm)
-    if not WT.DB.SocialWidget.ShowRealm then return "" end
+    local db = WT.DB.SocialWidget
+    if not db.ShowRealm then return "" end
     if not realm or realm == "" then realm = "---" end
-    local dashColor = WT.Colors:GetHex(WT.DB.SocialWidget.ColLocation, 0.66, 0.66, 0.66)
-    local lblColor = WT.Colors:GetHex(WT.DB.SocialWidget.ColLevel, 1, 0.82, 0)
-    local valColor = WT.Colors:GetHex(WT.DB.SocialWidget.ColRealm, 1, 1, 1)
-    return "|c" ..
-    dashColor ..
-    "-|r |c" ..
-    lblColor .. tostring(WT.L.TT_REALM) .. " [|r|c" .. valColor .. realm .. "|r|c" .. lblColor .. "]|r "
+    local dashColor = WT.Colors:GetHex(db.ColLocation, 0.66, 0.66, 0.66)
+    local labelColor = WT.Colors:GetHex(db.ColLevel, 1, 0.82, 0)
+    local valueColor = WT.Colors:GetHex(db.ColRealm, 1, 1, 1)
+    return "|c" .. dashColor .. "-|r |c" .. labelColor .. tostring(WT.L.TT_REALM) .. " [|r|c" .. valueColor
+        .. realm .. "|r|c" .. labelColor .. "]|r "
 end
 
-local function GetStatusString(isAFK, isDND, rawStatus)
-    if not WT.DB.SocialWidget.ShowStatus then return "" end
-    if type(rawStatus) == "number" then
-        if rawStatus == 1 then
-            isAFK = true
-        elseif rawStatus == 2 then
-            isDND = true
-        end
-    elseif type(rawStatus) == "string" and rawStatus ~= "" then
-        local upperStatus = string_upper(rawStatus)
-        if string_find(upperStatus, "DND") or string_find(upperStatus, "NICHT") or string_find(upperStatus, "BUSY") then isDND = true else isAFK = true end
-    end
+local function GetStatusString(isAFK, isDND)
+    local db = WT.DB.SocialWidget
+    if not db.ShowStatus then return "" end
     if isDND then
-        return "|c" .. WT.Colors:GetHex(WT.DB.SocialWidget.ColDND, 1, 0.2, 0.2) .. "[DND]|r "
+        return "|c" .. WT.Colors:GetHex(db.ColDND, 1, 0.2, 0.2) .. tostring(WT.L.SW_TAG_DND) .. "|r "
     elseif isAFK then
-        return "|c" .. WT.Colors:GetHex(WT.DB.SocialWidget.ColAFK, 1, 0.82, 0) .. "[AFK]|r "
+        return "|c" .. WT.Colors:GetHex(db.ColAFK, 1, 0.82, 0) .. tostring(WT.L.SW_TAG_AFK) .. "|r "
     end
     return ""
 end
 
 local function GetNoteString(note)
-    if not WT.DB.SocialWidget.ShowNote or not note or note == "" then return "" end
-    local pColor = "|c" .. WT.Colors:GetHex(WT.DB.SocialWidget.ColRace, 1, 1, 1)
-    return pColor .. "(|r|c" .. WT.Colors:GetHex(WT.DB.SocialWidget.ColNote, 0, 1, 0) .. note .. "|r" .. pColor .. ")|r"
+    local db = WT.DB.SocialWidget
+    if not db.ShowNote or not note or note == "" then return "" end
+    local bracketColor = "|c" .. WT.Colors:GetHex(db.ColRace, 1, 1, 1)
+    return bracketColor .. "(|r|c" .. WT.Colors:GetHex(db.ColNote, 0, 1, 0) .. note .. "|r" .. bracketColor .. ")|r"
 end
 
-function Module:ShowDetailedTooltip(frame)
-    if not WT.DB.SocialWidget then return end
+local function GetGroupTag(guid)
+    if not WT.DB.SocialWidget.MarkGroupMembers or not guid or not groupGUIDs[guid] then return "" end
+    return COLOR_GROUP .. tostring(WT.L.SW_TAG_GROUP) .. "|r "
+end
 
-    local tt = _G["WTSocialTooltip"]
-    if not tt then
-        tt = CreateFrame("GameTooltip", "WTSocialTooltip", _G["WT_UIContainer"], "GameTooltipTemplate")
-        tt.ignoreInLayout = true
-        tt.ignoreFramePositionManager = true
-        if tt.SetIsFramePositionManaged then pcall(function() tt:SetIsFramePositionManaged(false) end) end
+--- One tooltip line for a WoW character (guild member or friend).
+local function BuildCharacterLine(coloredName, level, isAFK, isDND, faction, race, sex, location, realm, note, guid)
+    return GetGroupTag(guid) .. GetLevelString(level) .. GetStatusString(isAFK, isDND) .. GetFactionIcon(faction)
+        .. coloredName .. " " .. GetRaceString(race) .. GetGenderString(sex) .. GetLocationString(location)
+        .. GetRealmString(realm) .. GetNoteString(note)
+end
+
+--- Creates a list entry. sortName/level/zone are used for sorting, tellTarget/isBNet for whispers.
+local function NewEntry(list, text, sortName, level, zone, tellTarget, isBNet)
+    list[#list + 1] = {
+        text = text,
+        sortName = string_lower(sortName or ""),
+        level = level or 0,
+        zone = string_lower(zone or ""),
+        tellTarget = tellTarget,
+        isBNet = isBNet,
+    }
+end
+
+-- ----------------------------------------------------------------------------
+-- Data collection
+-- ----------------------------------------------------------------------------
+
+local function CollectGroupGUIDs()
+    wipe(groupGUIDs)
+    if not WT.DB.SocialWidget.MarkGroupMembers or not IsInGroup() then return end
+    local prefix, count = "party", GetNumSubgroupMembers()
+    if IsInRaid() then prefix, count = "raid", GetNumGroupMembers() end
+    for i = 1, count do
+        local guid = Unsecret(UnitGUID(prefix .. i))
+        if guid then groupGUIDs[guid] = true end
     end
+end
 
-    if WT.DB.SocialWidget.HideTooltipCombat and InCombatLockdown() then
-        if tt:GetOwner() == frame then tt:Hide() end
+local function GetPlayerFaction()
+    return Unsecret(UnitFactionGroup("player")) or "Alliance"
+end
+
+local function CollectGuild(playerFaction)
+    wipe(guildEntries)
+    wipe(mobileEntries)
+    if not IsInGuild() or not GetNumGuildMembers or not GetGuildRosterInfo then return end
+
+    local showMobile = WT.DB.SocialWidget.ShowMobile
+    local numMembers = SafeNum((GetNumGuildMembers())) or 0
+    for i = 1, numMembers do
+        local fullName, _, _, level, _, zone, note, _, isOnline, status, classFile, _, _, isMobile, _, _, guid = GetGuildRosterInfo(i)
+        fullName = Unsecret(fullName)
+        local online = SafeBool(isOnline)
+        local mobileOnly = showMobile and not online and SafeBool(isMobile)
+        if fullName and (online or mobileOnly) then
+            local name, realm = SplitName(fullName)
+            guid = Unsecret(guid)
+            local coloredName = "|c" .. (GetClassColorHex(Unsecret(classFile)) or COLOR_FALLBACK_CLASS) .. name .. "|r"
+            level = SafeNum(level)
+            if mobileOnly then
+                local text = COLOR_MOBILE .. tostring(WT.L.SW_TAG_MOBILE) .. "|r " .. GetLevelString(level) .. coloredName
+                    .. " " .. GetNoteString(Unsecret(note))
+                NewEntry(mobileEntries, text, name, level, nil, fullName, false)
+            else
+                local _, _, race, englishRace, sex = WT.Utils:GetPlayerInfoByGUID(guid)
+                local faction = (englishRace and WT.Utils.Units.RACE_TO_FACTION[englishRace]) or playerFaction
+                status = SafeNum(status)
+                zone = Unsecret(zone)
+                local text = BuildCharacterLine(coloredName, level, status == STATUS_AFK, status == STATUS_DND, faction,
+                    race, sex, zone, realm, Unsecret(note), guid)
+                NewEntry(guildEntries, text, name, level, zone, fullName, false)
+            end
+        end
+    end
+end
+
+local function CollectBattleNetFriends()
+    if not BNGetNumFriends or not (C_BattleNet and C_BattleNet.GetFriendAccountInfo) then return end
+
+    local numFriends = SafeNum((BNGetNumFriends())) or 0
+    for i = 1, numFriends do
+        local account = C_BattleNet.GetFriendAccountInfo(i)
+        local game = account and account.gameAccountInfo
+        if account and game and SafeBool(game.isOnline) then
+            local accountName = Unsecret(account.accountName) or ""
+            local sortName = Unsecret(account.battleTag) or accountName
+            local client = Unsecret(game.clientProgram)
+            local isAFK = account.isAFK or game.isGameAFK
+            local isDND = account.isDND or game.isGameBusy
+            local note = Unsecret(account.note)
+            local characterName = Unsecret(game.characterName) or ""
+            local projectID = SafeNum(game.wowProjectID)
+
+            if client == BNET_CLIENT_WOW and (not projectID or projectID == WOW_PROJECT_ID) then
+                -- Same WoW version: full character details
+                local guid = Unsecret(game.playerGuid)
+                local _, guidClass, _, _, sex = WT.Utils:GetPlayerInfoByGUID(guid)
+                local classFile = Unsecret(game["classFilename"]) or guidClass
+                local classColor = GetClassColorHex(classFile) or COLOR_FALLBACK_BNET_CLASS
+                local coloredName = COLOR_BNET_NAME .. accountName .. "|r"
+                if characterName ~= "" then
+                    coloredName = coloredName .. " (|c" .. classColor .. characterName .. "|r)"
+                end
+                local zone = Unsecret(game.areaName)
+                local level = SafeNum(game.characterLevel)
+                local text = BuildCharacterLine(coloredName, level, isAFK, isDND, Unsecret(game.factionName),
+                    Unsecret(game.raceName), sex, zone, Unsecret(game.realmName), note, guid)
+                NewEntry(wowFriendEntries, text, characterName ~= "" and characterName or sortName, level, zone,
+                    accountName, true)
+            elseif client == BNET_CLIENT_WOW then
+                -- Another WoW version (e.g. Classic): level and realm are not available, Blizzard's
+                -- friends list shows the rich presence text instead, so do the same
+                local coloredName = COLOR_BNET_NAME .. accountName .. "|r"
+                if characterName ~= "" then
+                    coloredName = coloredName .. " (" .. COLOR_BNET_NAME .. characterName .. "|r)"
+                end
+                local presence = Unsecret(game.richPresence)
+                local text = GetStatusString(isAFK, isDND) .. GetClientIcon(client) .. coloredName .. " "
+                    .. GetLocationString(presence) .. GetNoteString(note)
+                NewEntry(appFriendEntries, text, sortName, 0, presence, accountName, true)
+            else
+                local icon = GetClientIcon(client)
+                local clientText = ""
+                if icon == "" then
+                    local clientName = (client and client ~= "") and client or tostring(WT.L.SW_CLIENT_APP)
+                    clientText = " [" .. COLOR_CLIENT .. clientName .. "|r" .. COLOR_BNET_NAME .. "]"
+                end
+                local text = GetStatusString(isAFK, isDND) .. icon .. COLOR_BNET_NAME .. accountName .. clientText
+                    .. "|r " .. GetNoteString(note)
+                NewEntry(appFriendEntries, text, sortName, 0, nil, accountName, true)
+            end
+        end
+    end
+end
+
+local function CollectCharacterFriends(playerFaction)
+    if not (C_FriendList and C_FriendList.GetNumFriends and C_FriendList.GetFriendInfoByIndex) then return end
+
+    local numFriends = SafeNum(C_FriendList.GetNumFriends()) or 0
+    for i = 1, numFriends do
+        local info = C_FriendList.GetFriendInfoByIndex(i)
+        if info and SafeBool(info.connected) then
+            local fullName = Unsecret(info.name) or UNKNOWN
+            local name, realm = SplitName(fullName)
+            local guid = Unsecret(info.guid)
+            local _, _, race, englishRace, sex = WT.Utils:GetPlayerInfoByGUID(guid)
+            -- Cross-faction friends are possible, so derive the faction from the race when known
+            local faction = (englishRace and WT.Utils.Units.RACE_TO_FACTION[englishRace]) or playerFaction
+            local coloredName = "|c" .. (GetClassColorHex(Unsecret(info.className)) or COLOR_FALLBACK_CLASS) .. name .. "|r"
+            local level = SafeNum(info.level)
+            local zone = Unsecret(info.area)
+            local text = BuildCharacterLine(coloredName, level, info.afk, info.dnd, faction, race, sex, zone, realm,
+                Unsecret(info.notes), guid)
+            NewEntry(wowFriendEntries, text, name, level, zone, fullName, false)
+        end
+    end
+end
+
+-- ----------------------------------------------------------------------------
+-- Sorting & output
+-- ----------------------------------------------------------------------------
+
+local function SortByName(a, b)
+    return a.sortName < b.sortName
+end
+
+local function SortByLevel(a, b)
+    if a.level ~= b.level then return a.level > b.level end
+    return a.sortName < b.sortName
+end
+
+local function SortByZone(a, b)
+    if a.zone ~= b.zone then return a.zone < b.zone end
+    return a.sortName < b.sortName
+end
+
+local SORTERS = { NAME = SortByName, LEVEL = SortByLevel, ZONE = SortByZone }
+
+local function AddSection(tooltip, header, entries, r, g, b, interactive)
+    if #entries == 0 then return false end
+    local sorter = SORTERS[WT.DB.SocialWidget.SortBy]
+    if sorter then table_sort(entries, sorter) end
+
+    tooltip:AddLine(" ")
+    tooltip:AddLine(tostring(header) .. #entries, r, g, b)
+    tooltip:AddLine(DIVIDER)
+
+    local limit = SafeNum(WT.DB.SocialWidget.MaxEntries) or 0
+    local shown = (limit > 0 and limit < #entries) and limit or #entries
+    for i = 1, shown do
+        tooltip:AddLine(entries[i].text, 1, 1, 1)
+        if interactive then lineEntries[tooltip:NumLines()] = entries[i] end
+    end
+    if shown < #entries then
+        tooltip:AddLine(string_format(tostring(WT.L.SW_MORE_ENTRIES), #entries - shown), 0.5, 0.5, 0.5)
+    end
+    return true
+end
+
+-- ----------------------------------------------------------------------------
+-- Click to whisper
+-- ----------------------------------------------------------------------------
+
+local function Whisper(entry)
+    if not entry or not entry.tellTarget or entry.tellTarget == "" then return end
+    local chatUtil = _G["ChatFrameUtil"]
+    if entry.isBNet then
+        if chatUtil and chatUtil.SendBNetTell then
+            chatUtil.SendBNetTell(entry.tellTarget)
+        elseif _G["ChatFrame_SendBNetTell"] then
+            _G["ChatFrame_SendBNetTell"](entry.tellTarget)
+        end
+    elseif chatUtil and chatUtil.SendTell then
+        chatUtil.SendTell(entry.tellTarget)
+    elseif _G["ChatFrame_SendTell"] then
+        _G["ChatFrame_SendTell"](entry.tellTarget)
+    end
+end
+
+local function GetRowButton(tooltip, index)
+    local row = rowButtons[index]
+    if not row then
+        row = CreateFrame("Button", nil, tooltip)
+        row:RegisterForClicks("LeftButtonUp")
+        local highlight = row:CreateTexture(nil, "HIGHLIGHT")
+        highlight:SetAllPoints()
+        highlight:SetColorTexture(1, 1, 1, 0.08)
+        row:SetScript("OnClick", function(self)
+            Whisper(self.entry)
+            tooltip:Hide()
+        end)
+        rowButtons[index] = row
+    end
+    row:SetFrameLevel(tooltip:GetFrameLevel() + 5)
+    return row
+end
+
+local function LayoutRowButtons(tooltip)
+    local used = 0
+    local tooltipName = tooltip:GetName()
+    for lineIndex, entry in pairs(lineEntries) do
+        local line = _G[tooltipName .. "TextLeft" .. lineIndex]
+        if line then
+            used = used + 1
+            local row = GetRowButton(tooltip, used)
+            row.entry = entry
+            row:ClearAllPoints()
+            row:SetPoint("LEFT", tooltip, "LEFT", 4, 0)
+            row:SetPoint("RIGHT", tooltip, "RIGHT", -4, 0)
+            row:SetPoint("TOP", line, "TOP", 0, 1)
+            row:SetPoint("BOTTOM", line, "BOTTOM", 0, -1)
+            row:Show()
+        end
+    end
+    for i = used + 1, #rowButtons do
+        rowButtons[i]:Hide()
+        rowButtons[i].entry = nil
+    end
+end
+
+local function HideRowButtons()
+    for _, row in ipairs(rowButtons) do
+        row:Hide()
+        row.entry = nil
+    end
+end
+
+-- Keeps an interactive tooltip open while the mouse is over the widget or the tooltip
+local function CheckHover()
+    local tooltip = _G["WTSocialTooltip"]
+    local owner = tooltip and tooltip:GetOwner()
+    if not tooltip or not tooltip:IsShown() or not owner then
+        Module:UnregisterOnUpdate(CheckHover)
+        return
+    end
+    if not owner:IsMouseOver() and not tooltip:IsMouseOver() then
+        tooltip:Hide()
+        Module:UnregisterOnUpdate(CheckHover)
+    end
+end
+
+--- Called by the widget's OnLeave. Interactive tooltips close once the mouse leaves both frames.
+function Module:ReleaseTooltip(owner)
+    local tooltip = _G["WTSocialTooltip"]
+    if not tooltip or tooltip:GetOwner() ~= owner then return end
+    if WT.DB.SocialWidget.ClickToWhisper and tooltip:IsShown() then
+        self:RegisterOnUpdate(CheckHover, HOVER_CHECK_INTERVAL)
+    else
+        tooltip:Hide()
+    end
+end
+
+-- ----------------------------------------------------------------------------
+-- Tooltip
+-- ----------------------------------------------------------------------------
+
+local function IsTooltipModifierDown()
+    local modifier = WT.DB.SocialWidget.TooltipModifier or "NONE"
+    if modifier == "SHIFT" then return IsShiftKeyDown() end
+    if modifier == "CTRL" then return IsControlKeyDown() end
+    if modifier == "ALT" then return IsAltKeyDown() end
+    return true
+end
+
+local function AnchorTooltip(tooltip, owner)
+    -- Follow the cursor anchor of the Tooltip module when that module is in use
+    local ttDB = WT.DB.Tooltip
+    if WT.DB.SocialWidget.ClickToWhisper then
+        -- A tooltip that follows the cursor could never be reached with the mouse
+        ttDB = nil
+    end
+    if ttDB and WT.DB.Modules.Tooltip and ttDB.CursorAnchor then
+        local anchor = (ttDB.CursorAnchorType == "ANCHOR_CURSOR_RIGHT") and "ANCHOR_CURSOR_RIGHT" or "ANCHOR_CURSOR"
+        tooltip:SetOwner(owner, anchor, ttDB.CursorAnchorX or 0, ttDB.CursorAnchorY or 0)
+    elseif (owner:GetBottom() or 0) < (GetScreenHeight() / 2) then
+        tooltip:SetOwner(owner, "ANCHOR_TOP")
+    else
+        tooltip:SetOwner(owner, "ANCHOR_BOTTOM")
+    end
+end
+
+local function AddEmptyHint(tooltip)
+    local db = WT.DB.SocialWidget
+    local key
+    if db.ShowGuild and db.ShowBNet then
+        key = IsInGuild() and "SW_TT_EMPTY_BOTH" or "SW_TT_EMPTY_BOTH_NOGUILD"
+    elseif db.ShowGuild then
+        key = IsInGuild() and "SW_TT_EMPTY_GUILD" or "SW_TT_NO_GUILD"
+    elseif db.ShowBNet then
+        key = "SW_TT_EMPTY_FRIENDS"
+    end
+    if key then
+        tooltip:AddLine(" ")
+        tooltip:AddLine(tostring(WT.L[key]), 0.5, 0.5, 0.5)
+    end
+end
+
+function Module:ShowDetailedTooltip(owner)
+    local tooltip = _G["WTSocialTooltip"]
+    if not tooltip then return end
+    local db = WT.DB.SocialWidget
+
+    if (db.HideTooltipCombat and InCombatLockdown()) or not IsTooltipModifierDown() then
+        if tooltip:GetOwner() == owner then tooltip:Hide() end
         return
     end
 
-    local mod = WT.DB.SocialWidget.TooltipModifier or "NONE"
-    if mod == "SHIFT" and not IsShiftKeyDown() then
-        if tt:GetOwner() == frame then tt:Hide() end; return
-    end
-    if mod == "CTRL" and not IsControlKeyDown() then
-        if tt:GetOwner() == frame then tt:Hide() end; return
-    end
-    if mod == "ALT" and not IsAltKeyDown() then
-        if tt:GetOwner() == frame then tt:Hide() end; return
-    end
+    local interactive = db.ClickToWhisper and true or false
+    wipe(lineEntries)
 
-    if WT.DB.Tooltip and WT.DB.Tooltip.CursorAnchor then
-        local align = WT.DB.Tooltip.CursorAnchorType
-        local x = WT.DB.Tooltip.CursorX or 0
-        local y = WT.DB.Tooltip.CursorY or 0
+    AnchorTooltip(tooltip, owner)
+    tooltip:ClearLines()
+    tooltip:AddLine("|TInterface\\AddOns\\" .. addonName .. "\\Media\\Graphics\\Logo.tga:16:16:0:0|t "
+        .. tostring(WT.L.SW_TITLE), WT.Colors.PRIMARY_R, WT.Colors.PRIMARY_G, WT.Colors.PRIMARY_B)
 
-        if align == "ANCHOR_CURSOR_LEFT" then
-            tt:SetOwner(frame, "ANCHOR_CURSOR", x, y)
-        elseif align == "ANCHOR_CURSOR_RIGHT" then
-            tt:SetOwner(frame, "ANCHOR_CURSOR_RIGHT", x, y)
-        else
-            tt:SetOwner(frame, "ANCHOR_CURSOR", x, y)
-        end
-    else
-        local y = frame:GetBottom() or 0
-        if y < (_G.GetScreenHeight() / 2) then
-            tt:SetOwner(frame, "ANCHOR_TOP")
-        else
-            tt:SetOwner(frame, "ANCHOR_BOTTOM")
-        end
-    end
-
-    tt:ClearLines()
-    tt:AddLine(
-    "|TInterface\\AddOns\\" ..
-    addonName .. "\\Media\\Graphics\\Logo.tga:16:16:0:0|t " .. tostring(WT.L.SW_TITLE),
-        WT.Colors.PRIMARY_R, WT.Colors.PRIMARY_G, WT.Colors.PRIMARY_B)
-
+    local playerFaction = GetPlayerFaction()
     local hasContent = false
+    CollectGroupGUIDs()
 
-    if WT.DB.SocialWidget.ShowGuild and IsInGuild() then
-        local okG, numGuildRaw = pcall(GetNumGuildMembers)
-        local numGuildMembers = okG and SafeNum(numGuildRaw) or 0
-        local onlineGuild = 0
-        table_wipe(guildListCache)
-        local okFac, pFac = pcall(UnitFactionGroup, "player")
-        local playerFaction = okFac and Unsecret(pFac) or "Alliance"
-
-        for i = 1, numGuildMembers do
-            local ok, name, _, _, level, _, zone, note, _, online, status, classFileName, _, _, _, _, _, GUID = pcall(
-            GetGuildRosterInfo, i)
-            local isOnline = ok and (type(online) == "boolean" and online) or false
-            local uName = ok and Unsecret(name) or nil
-            if isOnline and uName then
-                onlineGuild = onlineGuild + 1
-                local ok, cName = pcall(strsplit, "-", uName)
-                local cleanName = ok and cName or uName
-                local uZone = Unsecret(zone)
-                local uNote = Unsecret(note)
-                local uGuid = Unsecret(GUID)
-                local uClass = Unsecret(classFileName)
-                local _, _, race, englishRace, sex = WT.Utils:GetPlayerInfoByGUID(uGuid)
-                local cColor = uClass and (WT.DB.ClassColors and WT.DB.ClassColors[uClass] or RAID_CLASS_COLORS[uClass]) or
-                nil
-                local classColorStr = cColor and WT.Colors:GetHex(cColor) or "ffffffff"
-                local hexName = "|c" .. classColorStr .. cleanName .. "|r"
-
-                local okR, rName = pcall(function() return select(2, strsplit("-", uName)) end)
-                local realm = okR and rName or nil
-                if not realm or realm == "" then realm = Unsecret(GetRealmName()) end
-
-                local memberFaction = englishRace and WT.Utils.Units.RACE_TO_FACTION[englishRace] or playerFaction
-                local statusStr = GetStatusString(false, false, Unsecret(status))
-                local displayStr = GetLevelString(SafeNum(level)) ..
-                statusStr ..
-                GetFactionIcon(memberFaction) ..
-                hexName ..
-                " " ..
-                GetRaceString(race) ..
-                GetGenderColor(sex) .. GetLocationString(uZone) .. GetRealmString(realm) .. GetNoteString(uNote)
-                table_insert(guildListCache, displayStr)
-            end
-        end
-
-        if onlineGuild > 0 then
-            hasContent = true
-            tt:AddLine(" ")
-            tt:AddLine(tostring(WT.L.SW_GUILD_ONLINE) .. onlineGuild, 0, 1, 0)
-            tt:AddLine("|TInterface\\Common\\UI-TooltipDivider-Transparent:8:260:0:3|t")
-            for _, info in ipairs(guildListCache) do tt:AddLine(info, 1, 1, 1) end
-        end
+    if db.ShowGuild then
+        CollectGuild(playerFaction)
+        hasContent = AddSection(tooltip, WT.L.SW_GUILD_ONLINE, guildEntries, 0, 1, 0, interactive) or hasContent
+        hasContent = AddSection(tooltip, WT.L.SW_GUILD_MOBILE, mobileEntries, 0.6, 0.6, 0.6, interactive) or hasContent
     end
 
-    if WT.DB.SocialWidget.ShowBNet then
-        local okBN, numBnetRaw = pcall(function() return (C_BattleNet and C_BattleNet.GetFriendNum and C_BattleNet.GetFriendNum()) or
-            (C_BattleNet and C_BattleNet.GetFriendCount and C_BattleNet.GetFriendCount()) or
-            (BNGetNumFriends and BNGetNumFriends()) or 0 end)
-        local bnetFriends = okBN and SafeNum(numBnetRaw) or 0
-        local okF, numFriendsRaw = pcall(C_FriendList.GetNumFriends)
-        local wowFriends = okF and SafeNum(numFriendsRaw) or 0
-        table_wipe(wowFriendsListCache)
-        table_wipe(appFriendsListCache)
-
-        for i = 1, bnetFriends do
-            local okAcc, accountInfo = false, nil
-            if C_BattleNet and C_BattleNet.GetFriendAccountInfo then
-                okAcc, accountInfo = pcall(C_BattleNet.GetFriendAccountInfo, i)
-            end
-            if okAcc and accountInfo and accountInfo.gameAccountInfo and accountInfo.gameAccountInfo.isOnline then
-                local g = accountInfo.gameAccountInfo
-                local client = g and Unsecret(g.clientProgram) or nil
-                local nameStr = Unsecret(accountInfo.accountName) or ""
-
-                if client == "WoW" or client == BNET_CLIENT_WOW then
-                    local charName = Unsecret(g.characterName) or ""
-                    local classColorStr = "ff4da6ff"
-                    local sex = nil
-
-                    local classFileName = g.className
-                    local pGuid = Unsecret(g.playerGuid)
-                    if pGuid then
-                        local _, guidClassFile, _, _, playerSex = WT.Utils:GetPlayerInfoByGUID(pGuid)
-                        sex = playerSex
-                        if guidClassFile and not RAID_CLASS_COLORS[classFileName] then
-                            classFileName = guidClassFile
-                        end
-                    end
-
-                    if classFileName then
-                        local cColor = WT.DB.ClassColors and WT.DB.ClassColors[classFileName] or
-                        RAID_CLASS_COLORS[classFileName]
-                        if cColor then classColorStr = WT.Colors:GetHex(cColor) end
-                    end
-
-                    if charName ~= "" then
-                        nameStr = "|cFF82C5FF" .. nameStr .. "|r (|c" .. classColorStr .. charName .. "|r)"
-                    else
-                        nameStr = "|cFF82C5FF" .. nameStr .. "|r"
-                    end
-
-                    local realm = Unsecret(g.realmName) or ""
-                    local statusStr = GetStatusString(accountInfo.isAFK or (g and g.isGameAFK),
-                        accountInfo.isDND or (g and g.isGameBusy))
-                    local displayStr = GetLevelString(SafeNum(g.characterLevel)) ..
-                    statusStr ..
-                    GetFactionIcon(Unsecret(g.factionName)) ..
-                    nameStr ..
-                    " " ..
-                    GetRaceString(Unsecret(g.raceName)) ..
-                    GetGenderColor(sex) ..
-                    GetLocationString(Unsecret(g.areaName)) ..
-                    GetRealmString(realm) .. GetNoteString(Unsecret(accountInfo.note))
-                    table_insert(wowFriendsListCache, displayStr)
-                else
-                    local gameStr = (client and client ~= "") and (" [|cFF00FFFF" .. client .. "|r]") or
-                    " [|cFF00FFFFApp|r]"
-                    local statusStr = GetStatusString(accountInfo.isAFK or (g and g.isGameAFK),
-                        accountInfo.isDND or (g and g.isGameBusy))
-                    local displayStr = statusStr ..
-                    "|cFF82C5FF" .. nameStr .. gameStr .. "|r " .. GetNoteString(Unsecret(accountInfo.note))
-                    table_insert(appFriendsListCache, displayStr)
-                end
-            end
-        end
-
-        for i = 1, wowFriends do
-            local okFInfo, friendInfo = pcall(C_FriendList.GetFriendInfoByIndex, i)
-            if okFInfo and friendInfo and friendInfo.connected then
-                local _, _, race, _, sex
-                local fGuid = Unsecret(friendInfo.guid)
-                if fGuid then _, _, race, _, sex = WT.Utils:GetPlayerInfoByGUID(fGuid) end
-
-                local fClass = Unsecret(friendInfo.className)
-                local fName = Unsecret(friendInfo.name) or "Unknown"
-
-                local cColor = fClass and (WT.DB.ClassColors and WT.DB.ClassColors[fClass] or RAID_CLASS_COLORS[fClass]) or
-                nil
-                local classColorStr = cColor and WT.Colors:GetHex(cColor) or "ffffffff"
-                local hexName = "|c" .. classColorStr .. fName .. "|r"
-
-                local okR, rName = pcall(function() return select(2, strsplit("-", fName)) end)
-                local realm = okR and rName or nil
-                if not realm or realm == "" then realm = Unsecret(GetRealmName()) end
-
-                local statusStr = GetStatusString(friendInfo.afk, friendInfo.dnd)
-                local okFac2, pFac2 = pcall(UnitFactionGroup, "player")
-                local pFaction2 = okFac2 and Unsecret(pFac2) or "Alliance"
-                local displayStr = GetLevelString(SafeNum(friendInfo.level)) ..
-                statusStr ..
-                GetFactionIcon(pFaction2) ..
-                hexName ..
-                " " ..
-                GetRaceString(race) ..
-                GetGenderColor(sex) ..
-                GetLocationString(Unsecret(friendInfo.area)) ..
-                GetRealmString(realm) .. GetNoteString(Unsecret(friendInfo.notes))
-                table_insert(wowFriendsListCache, displayStr)
-            end
-        end
-
-        if #wowFriendsListCache > 0 then
-            hasContent = true
-            tt:AddLine(" ")
-            tt:AddLine(tostring(WT.L.SW_FRIENDS_ONLINE) .. #wowFriendsListCache,
-                WT.Colors.PRIMARY_R, WT.Colors.PRIMARY_G, WT.Colors.PRIMARY_B)
-            tt:AddLine("|TInterface\\Common\\UI-TooltipDivider-Transparent:8:260:0:3|t")
-            for _, info in ipairs(wowFriendsListCache) do tt:AddLine(info, 1, 1, 1) end
-        end
-        if #appFriendsListCache > 0 then
-            hasContent = true
-            tt:AddLine(" ")
-            tt:AddLine(tostring(WT.L.SW_BNET_ONLINE) .. #appFriendsListCache, 0.6, 0.8, 1)
-            tt:AddLine("|TInterface\\Common\\UI-TooltipDivider-Transparent:8:260:0:3|t")
-            for _, info in ipairs(appFriendsListCache) do tt:AddLine(info, 1, 1, 1) end
-        end
+    if db.ShowBNet then
+        wipe(wowFriendEntries)
+        wipe(appFriendEntries)
+        CollectBattleNetFriends()
+        CollectCharacterFriends(playerFaction)
+        hasContent = AddSection(tooltip, WT.L.SW_FRIENDS_ONLINE, wowFriendEntries,
+            WT.Colors.PRIMARY_R, WT.Colors.PRIMARY_G, WT.Colors.PRIMARY_B, interactive) or hasContent
+        hasContent = AddSection(tooltip, WT.L.SW_BNET_ONLINE, appFriendEntries, 0.6, 0.8, 1, interactive) or hasContent
     end
 
     if not hasContent then
-        tt:AddLine(" ")
-
-        local showGuild = WT.DB.SocialWidget.ShowGuild
-        local showBNet = WT.DB.SocialWidget.ShowBNet
-
-        if showGuild and showBNet then
-            if not IsInGuild() then
-                tt:AddLine(tostring(WT.L.SW_TT_EMPTY_BOTH_NOGUILD), 0.5, 0.5, 0.5)
-            else
-                tt:AddLine(tostring(WT.L.SW_TT_EMPTY_BOTH), 0.5, 0.5, 0.5)
-            end
-        elseif showGuild then
-            if not IsInGuild() then
-                tt:AddLine(tostring(WT.L.SW_TT_NO_GUILD), 0.5, 0.5, 0.5)
-            else
-                tt:AddLine(tostring(WT.L.SW_TT_EMPTY_GUILD), 0.5, 0.5, 0.5)
-            end
-        elseif showBNet then
-            tt:AddLine(tostring(WT.L.SW_TT_EMPTY_FRIENDS), 0.5, 0.5, 0.5)
-        end
+        AddEmptyHint(tooltip)
+    elseif interactive then
+        tooltip:AddLine(" ")
+        tooltip:AddLine(tostring(WT.L.SW_TT_HINT_WHISPER), 0.5, 0.5, 0.5)
     end
 
-    tt:Show()
+    tooltip:EnableMouse(interactive)
+    tooltip:Show()
+    if interactive then
+        LayoutRowButtons(tooltip)
+    else
+        HideRowButtons()
+    end
 end

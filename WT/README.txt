@@ -157,7 +157,7 @@ TOOLTIPS
 SMALL TRACKERS / WIDGETS
 - System: Displays FPS, latency, and memory usage.
 - Time: A small widget for time and date.
-- Social: Shows online guild members and Battle.net friends.
+- Social: Shows online guild members and Battle.net friends, with a sortable detail tooltip and click to whisper.
 
 --------------------------------------------------------------------------------
 CUSTOM MEDIA
