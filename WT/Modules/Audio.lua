@@ -3,83 +3,82 @@ local _, WT = ...
 WT.Modules.Audio = {}
 local Module = WT.Modules.Audio
 
--- A dynamic registry for conditional hardcoded mutes.
--- Whenever a specific addon feature uses a custom sound (not "None"), 
--- the original Blizzard sounds listed in 'ids' will be muted.
-local HARDCODED_MUTES = {
-    {
-        name = "Guild Logins",
-        -- Extended list to include ALL known offline/online toasts and quick joins
-        ids = { 567472, 567473, 567439, 567440, 567441, 567442, 567443, 567444, 567445, 567446, 642646, 642647, 1411325, 1411326, 3508930, 3508931, 567421 }, -- Guild567421 
+local function HasCustomSound(value)
+    return value ~= nil and value ~= "None"
+end
+
+-- Blizzard sounds that WT replaces with a sound chosen by the user.
+-- While the replacing feature is active (its module enabled and a custom sound selected),
+-- the original Blizzard sound is muted so that both sounds don't play on top of each other.
+-- IDs are FileDataIDs; verify them on https://wago.tools/files before changing anything.
+local REPLACED_SOUNDS = {
+    { -- "<name> has come online" chime (guild members and character friends)
+        ids = { 567518 }, -- sound/interface/friendjoin.ogg
         condition = function()
-            return WT.DB.Chat and WT.DB.Chat.SmartGuildLogins and WT.DB.Chat.SmartLoginSound and WT.DB.Chat.SmartLoginSound ~= "None"
-        end
+            local db = WT.DB.Chat
+            return WT.DB.Modules.Chat and db and db.SmartGuildLogins and HasCustomSound(db.SmartLoginSound)
+        end,
     },
-    {
-        name = "Whispers",
-        ids = { 567436 }, -- TellMessage (SoundKit 3081)
+    { -- Incoming whisper / Battle.net whisper
+        ids = { 567421 }, -- sound/interface/itellmessage.ogg
         condition = function()
-            if not WT.DB.ChatChannels then return false end
-            local w = WT.DB.ChatChannels.ChanWhisperSound and WT.DB.ChatChannels.ChanWhisperSound ~= "None"
-            local bw = WT.DB.ChatChannels.ChanBNetWhisperSound and WT.DB.ChatChannels.ChanBNetWhisperSound ~= "None"
-            return w or bw
-        end
+            local db = WT.DB.ChatChannels
+            return WT.DB.Modules.Chat and db and (HasCustomSound(db.ChanWhisperSound) or HasCustomSound(db.ChanBNetWhisperSound))
+        end,
     },
-    {
-        name = "LFG Applicant",
-        ids = { 1067667 }, -- UI_GroupFinderReceiveApplication_01
+    { -- Raid warning
+        ids = { 567397 }, -- sound/interface/raidwarning.ogg
         condition = function()
-            return WT.DB.LFG and WT.DB.LFG.AudioAlert and WT.DB.LFG.AudioAlertSound and WT.DB.LFG.AudioAlertSound ~= "None"
-        end
+            local db = WT.DB.ChatChannels
+            return WT.DB.Modules.Chat and db and HasCustomSound(db.ChanRaidWarningSound)
+        end,
     },
-    {
-        name = "Raid Warning",
-        ids = { 567432 }, -- RaidWarning
+    { -- New applicant in the Group Finder
+        ids = { 1067667 }, -- sound/interface/ui_groupfinderreceiveapplication_01.ogg
         condition = function()
-            return WT.DB.ChatChannels and WT.DB.ChatChannels.ChanRaidWarningSound and WT.DB.ChatChannels.ChanRaidWarningSound ~= "None"
-        end
+            local db = WT.DB.LFG
+            return WT.DB.Modules.Groups and db and db.AudioAlert and HasCustomSound(db.AudioAlertSound)
+        end,
     },
 }
 
-local customMutedIDs = {}
+-- Every FileDataID that WT itself has muted. Only these are ever unmuted again,
+-- so mutes set by the game or by other addons are never touched.
+local mutedByWT = {}
 
 function Module:UpdateMutes()
-    if not WT.DB.Modules.Audio then
-        for id in pairs(customMutedIDs) do UnmuteSoundFile(id) end
-        wipe(customMutedIDs)
-        for _, group in ipairs(HARDCODED_MUTES) do
-            for _, id in ipairs(group.ids) do UnmuteSoundFile(id) end
-        end
-        
-        -- Removed CVar resets here to prevent overriding user's native WoW settings.
-        return
-    end
+    local wanted = {}
 
-    for id in pairs(customMutedIDs) do UnmuteSoundFile(id) end
-    wipe(customMutedIDs)
-    
-    if WT.DB.Audio.CustomMutes and WT.DB.Audio.CustomMutes ~= "" then
+    -- Custom mute list from the Audio module
+    if WT.DB.Modules.Audio and WT.DB.Audio.CustomMutes and WT.DB.Audio.CustomMutes ~= "" then
         for idStr in string.gmatch(WT.DB.Audio.CustomMutes, "([^,;%s]+)") do
             local id = tonumber(idStr)
-            if id then MuteSoundFile(id); customMutedIDs[id] = true end
+            if id then wanted[id] = true end
         end
     end
-    
-    for _, group in ipairs(HARDCODED_MUTES) do
-        local shouldMute = group.condition()
-        for _, id in ipairs(group.ids) do
-            if not customMutedIDs[id] then
-                if shouldMute then MuteSoundFile(id) else UnmuteSoundFile(id) end
-            end
+
+    -- Blizzard sounds replaced by WT features (independent of the Audio module)
+    for _, group in ipairs(REPLACED_SOUNDS) do
+        if group.condition() then
+            for _, id in ipairs(group.ids) do wanted[id] = true end
         end
     end
-    
-    -- Removed CVar overrides that forcefully disabled visual toasts and chat messages.
-    -- MuteSoundFile handles the audio suppression safely on its own without breaking visual UI elements.
+
+    for id in pairs(mutedByWT) do
+        if not wanted[id] then
+            UnmuteSoundFile(id)
+            mutedByWT[id] = nil
+        end
+    end
+    for id in pairs(wanted) do
+        if not mutedByWT[id] then
+            MuteSoundFile(id)
+            mutedByWT[id] = true
+        end
+    end
 end
 
 function Module:Initialize()
-    if not WT.DB.Modules.Audio then return end
     self:UpdateMutes()
 end
 

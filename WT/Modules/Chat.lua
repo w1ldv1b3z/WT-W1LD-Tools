@@ -538,8 +538,6 @@ function Module:BuildOptions(builder, panel)
         function(value)
             self:UpdateSmartLogins(value); if WT.Modules.Audio then WT.Modules.Audio:UpdateMutes() end
         end)
-    panel:CreateCheckbox(builder, WT.L.OPT_CHAT_SHOW_FRIEND_LOGINS,
-        WT.L.OPT_DESC_CHAT_SHOW_FRIEND_LOGINS, "Chat", "SmartLoginShowFriends", nil, slInit)
     panel:CreateCheckbox(builder, WT.L.OPT_CHAT_SHOW_BNET_LOGINS,
         WT.L.OPT_DESC_CHAT_SHOW_BNET_LOGINS, "Chat", "SmartLoginShowBNetFriends", nil, slInit)
     if WT.Utils and WT.Utils.SharedMedia then

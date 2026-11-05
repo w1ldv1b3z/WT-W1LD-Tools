@@ -275,10 +275,12 @@ function Module:BuildOptions(builder, panel)
     panel:CreateCheckbox(builder, WT.L.OPT_LFG_FACTION_ICONS, WT.L.OPT_DESC_LFG_FACTION_ICONS, "LFG", "FactionIcons")
     panel:CreateCheckbox(builder, WT.L.OPT_LFG_REALM_FLAGS, WT.L.OPT_DESC_LFG_REALM_FLAGS, "LFG", "RealmFlags")
 
+    -- The Blizzard applicant sound is muted while a custom sound is selected (see Modules/Audio.lua)
+    local function UpdateMutes() if WT.Modules.Audio then WT.Modules.Audio:UpdateMutes() end end
     local aaInit = panel:CreateCheckbox(builder, WT.L.OPT_LFG_AUDIO_ALERT, WT.L.OPT_DESC_LFG_AUDIO_ALERT, "LFG",
-        "AudioAlert")
+        "AudioAlert", UpdateMutes)
     if WT.Utils and WT.Utils.SharedMedia then
         panel:CreateSoundDropdown(builder, WT.L.OPT_LFG_AUDIO_ALERT_SOUND, WT.L.OPT_DESC_LFG_AUDIO_ALERT_SOUND, "LFG",
-            "AudioAlertSound", aaInit)
+            "AudioAlertSound", aaInit, UpdateMutes)
     end
 end

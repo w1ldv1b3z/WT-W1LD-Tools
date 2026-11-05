@@ -129,7 +129,6 @@ WT.Config.Defaults = {
         SmartGuildLogins = false,
         SmartLoginSound = "None",
         SmartLoginSoundChannel = "Master",
-        SmartLoginShowFriends = false,
         SmartLoginShowBNetFriends = false,
         ColGuildLogin = { r = 0.2, g = 1, b = 0.2, a = 1 },
         ColGuildLogout = { r = 0.6, g = 0.6, b = 0.6, a = 1 },

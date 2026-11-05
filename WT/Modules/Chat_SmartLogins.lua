@@ -260,7 +260,7 @@ function Module:ProcessSmartLogins(msg)
     local eventType, rawName, classFileName, sourceType = ParseSmartLogin(safeMsg)
     if not eventType then return true, msg end
     
-    if sourceType == "FRIEND" and not WT.DB.Chat.SmartLoginShowFriends then return false, nil end
+    -- Guild members and WoW friends share Blizzard's login sound, so they are always handled together.
     if sourceType == "BNET" and not WT.DB.Chat.SmartLoginShowBNetFriends then return false, nil end
     if (eventType == "ONLINE" or eventType == "OFFLINE") and (GetTime() - (WT.Core.LoadTime or 0) < 5) then return false, nil end
     
@@ -278,7 +278,6 @@ smartLoginEventFrame:SetScript("OnEvent", function(_, _, msg, ...)
     local eventType, rawName, classFileName, sourceType = ParseSmartLogin(safeMsg)
     if not eventType then return end
 
-    if sourceType == "FRIEND" and not WT.DB.Chat.SmartLoginShowFriends then return end
     if sourceType == "BNET" and not WT.DB.Chat.SmartLoginShowBNetFriends then return end
     if (eventType == "ONLINE" or eventType == "OFFLINE") and (GetTime() - (WT.Core.LoadTime or 0) < 5) then return end
     
